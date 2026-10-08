@@ -1,0 +1,24 @@
+[Unit]
+Description=Kick Automation — Telegram Bot
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/kick_automation
+EnvironmentFile=/opt/kick_automation/config/.env
+ExecStart=/opt/kick_automation/.venv/bin/python scripts/telegram_bot.py
+Restart=always
+RestartSec=10
+
+# Resource limits — won't starve your other bots
+CPUQuota=150%
+MemoryMax=2G
+Nice=10
+
+StandardOutput=append:/opt/kick_automation/logs/bot.log
+StandardError=append:/opt/kick_automation/logs/bot.log
+
+[Install]
+WantedBy=multi-user.target
