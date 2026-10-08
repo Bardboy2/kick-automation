@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kick Clip Review Dashboard</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:       #0f0f0f;
+    --surface:  #1a1a1a;
+    --card:     #222;
+    --border:   #333;
+    --accent:   #53fc18;   /* Kick green */
+    --danger:   #ff4444;
+    --text:     #e8e8e8;
+    --muted:    #888;
+    --radius:   10px;
+  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; min-height: 100vh; }
+
+  /* ── Header ── */
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 100; }
+  header h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: -.3px; }
+  header h1 span { color: var(--accent); }
+  .badge { background: var(--accent); color: #000; font-size: .7rem; font-weight: 800; padding: 2px 8px; border-radius: 20px; }
+  .badge.muted { background: var(--border); color: var(--muted); }
+  .header-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .stats { font-size: .78rem; color: var(--muted); }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 24px; }
+  .tab-btn { background: none; border: none; color: var(--muted); padding: 12px 18px; cursor: pointer; font-size: .9rem; border-bottom: 2px solid transparent; transition: .15s; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  /* ── Layout ── */
+  .container { display: grid; grid-template-columns: 320px 1fr; gap: 0; height: calc(100vh - 97px); }
+
+  /* ── Clip list panel ── */
+  .clip-list { overflow-y: auto; border-right: 1px solid var(--border); background: var(--surface); }
+  .clip-list-inner { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .clip-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
+  .clip-card:hover { border-color: #555; background: #2a2a2a; }
+  .clip-card.active { border-color: var(--accent); }
+  .clip-card.status-posted    { opacity: .55; }
+  .clip-card.status-rejected  { opacity: .4; }
+  .clip-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .clip-title { font-size: .85rem; font-weight: 600; line-height: 1.3; flex: 1; margin-right: 8px; }
+  .status-pill { font-size: .65rem; font-weight: 700; padding: 2px 7px; border-radius: 20px; white-space: nowrap; }
+  .status-pill.pending  { background: #2a2a00; color: #f0c000; border: 1px solid #555500; }
+  .status-pill.posted   { background: #002a0a; color: var(--accent); border: 1px solid #004020; }
+  .status-pill.rejected { background: #2a0000; color: var(--danger); border: 1px solid #550000; }
+  .clip-meta { display: flex; gap: 10px; font-size: .72rem; color: var(--muted); }
+  .score-bar { margin-top: 8px; height: 3px; background: var(--border); border-radius: 2px; }
+  .score-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #53fc18, #f0c000); }
+  .empty-state { padding: 40px 20px; text-align: center; color: var(--muted); font-size: .85rem; }
+
+  /* ── Detail panel ── */
+  .detail-panel { overflow-y: auto; background: var(--bg); }
+  .detail-inner { padding: 24px; max-width: 800px; }
+  .placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-size: .9rem; }
+
+  /* ── Video player ── */
+  .video-wrap { background: #000; border-radius: var(--radius); overflow: hidden; margin-bottom: 20px; display: flex; justify-content: center; max-height: 420px; }
+  .video-wrap video { max-height: 420px; max-width: 100%; border-radius: var(--radius); }
+
+  /* ── Clip info row ── */
+  .info-row { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .info-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-size: .78rem; color: var(--muted); }
+  .info-chip strong { color: var(--text); }
+
+  /* ── AI description ── */
+  .ai-desc { background: #0f1f0f; border: 1px solid #1a3a1a; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px; font-size: .85rem; line-height: 1.5; color: #aad8a0; }
+  .ai-desc::before { content: "Claude AI · "; font-weight: 700; color: var(--accent); }
+
+  /* ── Platform metadata forms ── */
+  .platforms { display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px; }
+  .platform-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .platform-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--card); }
+  .platform-icon { width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 800; }
+  .icon-yt    { background: #ff0000; color: #fff; }
+  .icon-tt    { background: #000; color: #fff; border: 1px solid #333; }
+  .icon-ig    { background: linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); color: #fff; }
+  .platform-name { font-size: .85rem; font-weight: 700; }
+  .platform-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  label { font-size: .72rem; color: var(--muted); font-weight: 600; letter-spacing: .3px; text-transform: uppercase; }
+  input[type=text], textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 10px; font-size: .84rem; font-family: inherit; resize: vertical; transition: border-color .15s; }
+  input[type=text]:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  .hashtag-input { font-size: .8rem; color: #53fc18; }
+
+  /* ── Action buttons ── */
+  .actions { display: flex; gap: 12px; position: sticky; bottom: 0; background: var(--bg); padding: 16px 0 4px; border-top: 1px solid var(--border); }
+  .btn { display: flex; align-items: center; gap: 6px; padding: 10px 22px; border-radius: 8px; border: none; font-size: .9rem; font-weight: 700; cursor: pointer; transition: opacity .15s, transform .1s; }
+  .btn:hover { opacity: .88; }
+  .btn:active { transform: scale(.97); }
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn-approve { background: var(--accent); color: #000; flex: 1; justify-content: center; }
+  .btn-reject  { background: var(--surface); color: var(--danger); border: 1px solid var(--danger); }
+
+  /* ── Spinner / toast ── */
+  .spinner { display: none; width: 18px; height: 18px; border: 2px solid rgba(0,0,0,.3); border-top-color: #000; border-radius: 50%; animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 22px; font-size: .88rem; z-index: 999; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  #toast.success { border-color: var(--accent); color: var(--accent); }
+  #toast.error   { border-color: var(--danger); color: var(--danger); }
+
+  /* ── History tab ── */
+  #history-tab { display: none; padding: 24px; }
+  .history-table { width: 100%; border-collapse: collapse; font-size: .83rem; }
+  .history-table th { text-align: left; padding: 8px 12px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+  .history-table td { padding: 10px 12px; border-bottom: 1px solid #222; vertical-align: top; }
+  .history-table tr:hover td { background: var(--surface); }
+  .truncate { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .post-links a { color: var(--accent); text-decoration: none; font-size: .78rem; margin-right: 8px; }
+  .post-links a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span>Kick</span> Clip Review</h1>
+  {% if pending %}
+  <span class="badge">{{ pending|length }} pending</span>
+  {% else %}
+  <span class="badge muted">0 pending</span>
+  {% endif %}
+  <div class="header-right">
+    <span class="stats" id="stats-text">Loading stats…</span>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('review', this)">Review</button>
+  <button class="tab-btn" onclick="switchTab('history', this)">History</button>
+</div>
+
+<!-- ══ REVIEW TAB ══ -->
+<div id="review-tab">
+  <div class="container">
+
+    <!-- Clip list -->
+    <div class="clip-list">
+      <div class="clip-list-inner">
+        {% if pending %}
+          {% for clip in pending %}
+          <div class="clip-card" id="card-{{ clip.id }}" onclick="selectClip({{ clip.id }})">
+            <div class="clip-card-header">
+              <div class="clip-title">
+                {{ (clip.metadata_json or {}).get('youtube', {}).get('title') or ('Clip #' ~ clip.clip_index) }}
+              </div>
+              <span class="status-pill pending">Pending</span>
+            </div>
+            <div class="clip-meta">
+              <span>{{ '%.0f'|format(clip.duration or 0) }}s</span>
+              <span>AI {{ clip.ai_score or '?' }}/10</span>
+              <span>Audio {{ '%.0f'|format((clip.audio_score or 0) * 100) }}%</span>
+            </div>
+            <div class="score-bar">
+              <div class="score-fill" style="width:{{ ((clip.combined_score or 0) * 100)|int }}%"></div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">
+            No clips pending review.<br><br>
+            Run the pipeline to process a VOD:<br>
+            <code style="color:var(--accent);font-size:.75rem">python scripts/pipeline.py --vod-path …</code>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Detail panel -->
+    <div class="detail-panel" id="detail-panel">
+      <div class="placeholder" id="placeholder">
+        <span>← Select a clip to review</span>
+      </div>
+      <div class="detail-inner" id="detail-content" style="display:none">
+
+        <!-- Video player -->
+        <div class="video-wrap">
+          <video id="clip-video" controls playsinline></video>
+        </div>
+
+        <!-- Clip info chips -->
+        <div class="info-row" id="info-chips"></div>
+
+        <!-- AI description -->
+        <div class="ai-desc" id="ai-desc"></div>
+
+        <!-- Platform metadata (editable) -->
+        <div class="platforms">
+
+          <!-- YouTube Shorts -->
+          <div class="platform-block">
+            <div class="platform-header">
+              <div class="platform-icon icon-yt">▶</div>
+              <span class="platform-name">YouTube Shorts</span>
+            </div>
+            <div class="platform-body">
+              <label>Title <span style="color:#555;font-weight:400;text-transform:none">(max 100 chars)</span></label>
+              <input type="text" id="yt-title" maxlength="100" placeholder="e.g. This moment broke the internet 😱">
+              <label>Description</label>
+              <textarea id="yt-desc" rows="3" placeholder="Describe the clip…"></textarea>
+              <label>Tags (comma-separated)</label>
+              <input type="text" id="yt-tags" placeholder="viral, kick, clips, shorts">
+            </div>
+          </div>
+
+          <!-- TikTok -->
+          <div class="platform-block">
+            <div class="platform-header">
+              <div class="platform-icon icon-tt">♪</div>
+              <span class="platform-name">TikTok</span>
+            </div>
+            <div class="platform-body">
+              <label>Title <span style="color:#555;font-weight:400;text-transform:none">(max 150 chars)</span></label>
+              <input type="text" id="tt-title" maxlength="150" placeholder="Hook for TikTok…">
+            </div>
+          </div>
+
+          <!-- Instagram Reels -->
+          <div class="platform-block">
+            <div class="platform-header">
+              <div class="platform-icon icon-ig">◈</div>
+              <span class="platform-name">Instagram Reels</span>
+            </div>
+            <div class="platform-body">
+              <label>Caption</label>
+              <textarea id="ig-caption" rows="3" placeholder="Caption for Reels…"></textarea>
+            </div>
+          </div>
+
+          <!-- Shared hashtags -->
+          <div class="platform-block">
+            <div class="platform-header">
+              <span style="font-size:.9rem">#</span>
+              <span class="platform-name">Shared Hashtags</span>
+            </div>
+            <div class="platform-body">
+              <label>Used across all platforms</label>
+              <input type="text" id="hashtags" class="hashtag-input" placeholder="#kick #viral #clips …">
+            </div>
+          </div>
+        </div>
+
+        <!-- Transcript (collapsed) -->
+        <details style="margin-bottom:80px">
+          <summary style="cursor:pointer;color:var(--muted);font-size:.8rem;margin-bottom:6px">Transcript</summary>
+          <p id="transcript" style="font-size:.8rem;color:var(--muted);line-height:1.6;margin-top:8px"></p>
+        </details>
+
+        <!-- Actions -->
+        <div class="actions">
+          <button class="btn btn-reject" onclick="rejectClip()">✕ Reject</button>
+          <button class="btn btn-approve" id="approve-btn" onclick="approveClip()">
+            <span id="approve-text">✓ Approve & Post</span>
+            <div class="spinner" id="approve-spinner"></div>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ HISTORY TAB ══ -->
+<div id="history-tab">
+  <table class="history-table">
+    <thead>
+      <tr>
+        <th>Clip</th><th>Status</th><th>Duration</th><th>AI Score</th><th>Posted at</th><th>Links</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for clip in recent %}
+      <tr>
+        <td class="truncate">
+          {{ (clip.metadata_json or {}).get('youtube', {}).get('title') or ('Clip #' ~ clip.clip_index) }}
+        </td>
+        <td><span class="status-pill {{ clip.status }}">{{ clip.status }}</span></td>
+        <td>{{ '%.0f'|format(clip.duration or 0) }}s</td>
+        <td>{{ clip.ai_score or '—' }}/10</td>
+        <td style="color:var(--muted);font-size:.75rem">{{ (clip.reviewed_at or '')[:16] }}</td>
+        <td class="post-links">
+          {% set results = clip.post_results %}
+          {% if results %}
+            {% if results.get('published') %}
+              {% for pub in results.get('published', []) %}
+                {% for platform, data in (pub.get('results') or {}).items() %}
+                  {% if data.get('url') %}<a href="{{ data.url }}" target="_blank">{{ platform }}</a>{% endif %}
+                {% endfor %}
+              {% endfor %}
+            {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not recent %}
+      <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">No history yet.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let currentClipId = null;
+
+// ── Tab switching ────────────────────────────────────────────────────────────
+function switchTab(tab, btn) {
+  document.getElementById('review-tab').style.display  = tab === 'review'  ? '' : 'none';
+  document.getElementById('history-tab').style.display = tab === 'history' ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+// History tab uses block instead of grid
+document.getElementById('history-tab').style.display = 'none';
+
+// ── Select a clip ────────────────────────────────────────────────────────────
+async function selectClip(clipId) {
+  // Highlight card
+  document.querySelectorAll('.clip-card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById('card-' + clipId);
+  if (card) card.classList.add('active');
+
+  currentClipId = clipId;
+  const res  = await fetch('/api/clip/' + clipId);
+  const clip = await res.json();
+
+  // Show detail panel
+  document.getElementById('placeholder').style.display    = 'none';
+  document.getElementById('detail-content').style.display = '';
+
+  // Video
+  const video = document.getElementById('clip-video');
+  video.src   = '/video/' + (clip.captioned_path || clip.clip_path || '').replace(/^\//, '');
+  video.load();
+
+  // Info chips
+  const chips = document.getElementById('info-chips');
+  chips.innerHTML = [
+    `<div class="info-chip"><strong>${(clip.duration||0).toFixed(0)}s</strong> duration</div>`,
+    `<div class="info-chip">AI score <strong>${clip.ai_score||'?'}/10</strong></div>`,
+    `<div class="info-chip">Audio energy <strong>${((clip.audio_score||0)*100).toFixed(0)}%</strong></div>`,
+    `<div class="info-chip">Peak at <strong>${fmtTime(clip.peak_time||0)}</strong></div>`,
+  ].join('');
+
+  // AI description
+  document.getElementById('ai-desc').textContent = clip.ai_description || 'No description available.';
+
+  // Metadata
+  const meta = clip.metadata_json || {};
+  const yt   = meta.youtube   || {};
+  const tt   = meta.tiktok    || {};
+  const ig   = meta.instagram || {};
+  const tags = Array.isArray(meta.hashtags) ? meta.hashtags.join(' ') : (meta.hashtags || '');
+
+  document.getElementById('yt-title').value   = yt.title       || '';
+  document.getElementById('yt-desc').value    = yt.description || '';
+  document.getElementById('yt-tags').value    = Array.isArray(yt.tags) ? yt.tags.join(', ') : '';
+  document.getElementById('tt-title').value   = tt.title       || '';
+  document.getElementById('ig-caption').value = ig.caption     || '';
+  document.getElementById('hashtags').value   = tags;
+
+  // Transcript
+  document.getElementById('transcript').textContent = clip.transcript || 'No transcript available.';
+
+  // Reset approve button
+  setApproveLoading(false);
+}
+
+// ── Approve ──────────────────────────────────────────────────────────────────
+async function approveClip() {
+  if (!currentClipId) return;
+  setApproveLoading(true);
+
+  const metadata = buildMetadata();
+
+  try {
+    const res  = await fetch('/api/clip/' + currentClipId + '/approve', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ metadata }),
+    });
+    const data = await res.json();
+
+    if (data.status === 'posted') {
+      toast('Posted successfully to all platforms!', 'success');
+      markCardStatus(currentClipId, 'posted');
+      currentClipId = null;
+      setTimeout(() => location.reload(), 1800);
+    } else {
+      toast('Post failed: ' + (data.detail || 'Unknown error'), 'error');
+    }
+  } catch (e) {
+    toast('Network error: ' + e.message, 'error');
+  } finally {
+    setApproveLoading(false);
+  }
+}
+
+// ── Reject ───────────────────────────────────────────────────────────────────
+async function rejectClip() {
+  if (!currentClipId) return;
+  if (!confirm('Reject this clip? It will not be posted.')) return;
+
+  await fetch('/api/clip/' + currentClipId + '/reject', { method: 'POST' });
+  toast('Clip rejected.', 'error');
+  markCardStatus(currentClipId, 'rejected');
+  currentClipId = null;
+  setTimeout(() => location.reload(), 1200);
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function buildMetadata() {
+  return {
+    youtube: {
+      title:       document.getElementById('yt-title').value,
+      description: document.getElementById('yt-desc').value,
+      tags:        document.getElementById('yt-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+    },
+    tiktok:    { title:   document.getElementById('tt-title').value },
+    instagram: { caption: document.getElementById('ig-caption').value },
+    hashtags:  document.getElementById('hashtags').value.split(/\s+/).filter(Boolean),
+  };
+}
+
+function setApproveLoading(loading) {
+  const btn  = document.getElementById('approve-btn');
+  const txt  = document.getElementById('approve-text');
+  const spin = document.getElementById('approve-spinner');
+  btn.disabled    = loading;
+  txt.textContent = loading ? 'Posting…' : '✓ Approve & Post';
+  spin.style.display = loading ? 'block' : 'none';
+}
+
+function markCardStatus(clipId, status) {
+  const card = document.getElementById('card-' + clipId);
+  if (!card) return;
+  card.classList.add('status-' + status);
+  const pill = card.querySelector('.status-pill');
+  if (pill) { pill.textContent = status; pill.className = 'status-pill ' + status; }
+}
+
+function fmtTime(secs) {
+  const m = Math.floor(secs / 60), s = Math.round(secs % 60);
+  return `${m}m${String(s).padStart(2,'0')}s`;
+}
+
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent  = msg;
+  el.className    = 'show ' + (type || '');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.className = '', 3500);
+}
+
+// ── Load stats ───────────────────────────────────────────────────────────────
+(async () => {
+  try {
+    const stats = await (await fetch('/api/stats')).json();
+    const parts = Object.entries(stats).map(([k,v]) => `${v} ${k}`);
+    document.getElementById('stats-text').textContent = parts.join(' · ') || 'No clips yet';
+  } catch {}
+})();
+
+// ── Auto-select first pending clip ───────────────────────────────────────────
+const firstCard = document.querySelector('.clip-card');
+if (firstCard) firstCard.click();
+</script>
+</body>
+</html>

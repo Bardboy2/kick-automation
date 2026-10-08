@@ -1,0 +1,28 @@
+# kick_automation/requirements.txt
+# Install with:  pip install -r requirements.txt
+
+# ── HTTP ──────────────────────────────────────────────────────────────────────
+requests>=2.31.0
+
+# ── Audio analysis (peak detection) ───────────────────────────────────────────
+numpy>=1.26.0
+
+# ── Speech-to-text (viral captions) ───────────────────────────────────────────
+faster-whisper>=1.0.0      # word-level timestamps, Python 3.14 compatible
+Pillow>=10.0.0             # caption PNG rendering (no libass/libfreetype needed)
+
+# ── AI — Claude (scene analysis + metadata generation) ────────────────────────
+anthropic>=0.40.0
+
+# ── Web dashboard (clip review UI) ────────────────────────────────────────────
+flask>=3.0.0
+
+# ── Environment variables ─────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+
+# ── Video download ────────────────────────────────────────────────────────────
+yt-dlp>=2024.1.0
+curl_cffi>=0.6.0             # Chrome impersonation for Kick VOD scraping
+
+# ── Facebook / Meta Marketing API ─────────────────────────────────────────────
+facebook-business>=20.0.0

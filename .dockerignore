@@ -1,0 +1,11 @@
+.venv/
+data/
+logs/
+__pycache__/
+*.pyc
+.DS_Store
+.git/
+.claude/
+config/.env
+config/client_secret.json
+*.log

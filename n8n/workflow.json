@@ -1,0 +1,135 @@
+{
+  "name": "Kick Viral Clip Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 5 }]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "command": "cd /opt/kick_automation && source .env && python scripts/monitor.py --once 2>&1"
+      },
+      "id": "run-monitor",
+      "name": "Run Monitor",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "path": "/data/triggers",
+        "events": ["create"],
+        "options": {}
+      },
+      "id": "watch-triggers",
+      "name": "Watch Trigger Files",
+      "type": "n8n-nodes-base.localFileTrigger",
+      "typeVersion": 1,
+      "position": [240, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\nconst triggerPath = $json.path;\nconst trigger = JSON.parse(fs.readFileSync(triggerPath, 'utf8'));\nreturn [{ json: trigger }];"
+      },
+      "id": "parse-trigger",
+      "name": "Parse Trigger JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 520]
+    },
+    {
+      "parameters": {
+        "command": "=cd /opt/kick_automation && source .env && python scripts/pipeline.py --vod-id {{ $json.vod_id }} --vod-path {{ $json.local_path }} 2>&1"
+      },
+      "id": "run-pipeline",
+      "name": "Run Full Pipeline",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [720, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $json.stdout || '';\nlet result;\ntry {\n  const jsonStart = output.lastIndexOf('{');\n  result = JSON.parse(output.slice(jsonStart));\n} catch(e) {\n  result = { status: 'parse_error', raw: output };\n}\nreturn [{ json: result }];"
+      },
+      "id": "parse-result",
+      "name": "Parse Pipeline Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 520]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [{
+            "value1": "={{ $json.status }}",
+            "operation": "equals",
+            "value2": "done"
+          }]
+        }
+      },
+      "id": "check-success",
+      "name": "Pipeline Succeeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1200, 520]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=✅ *Pipeline complete!*\nVOD: `{{ $json.vod_id }}`\nPublished {{ $json.published.length }} clip(s) in {{ $json.elapsed_s }}s",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "notify-success",
+      "name": "Notify Success",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1440, 420],
+      "credentials": { "telegramApi": { "id": "1", "name": "Telegram Bot" } }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=⚠️ *Pipeline status: {{ $json.status }}*\nVOD: `{{ $json.vod_id }}`\nCheck logs at /data/logs/",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "notify-status",
+      "name": "Notify Non-Done Status",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1440, 640],
+      "credentials": { "telegramApi": { "id": "1", "name": "Telegram Bot" } }
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [[{ "node": "Run Monitor", "type": "main", "index": 0 }]]
+    },
+    "Watch Trigger Files": {
+      "main": [[{ "node": "Parse Trigger JSON", "type": "main", "index": 0 }]]
+    },
+    "Parse Trigger JSON": {
+      "main": [[{ "node": "Run Full Pipeline", "type": "main", "index": 0 }]]
+    },
+    "Run Full Pipeline": {
+      "main": [[{ "node": "Parse Pipeline Result", "type": "main", "index": 0 }]]
+    },
+    "Parse Pipeline Result": {
+      "main": [[{ "node": "Pipeline Succeeded?", "type": "main", "index": 0 }]]
+    },
+    "Pipeline Succeeded?": {
+      "main": [
+        [{ "node": "Notify Success",      "type": "main", "index": 0 }],
+        [{ "node": "Notify Non-Done Status", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

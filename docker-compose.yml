@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  bot:
+    build: .
+    image: kick-automation:latest
+    container_name: kick_bot
+    restart: unless-stopped
+    command: python scripts/telegram_bot.py
+    env_file: config/.env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config:ro
+    depends_on:
+      - editor
+
+  editor:
+    build: .
+    image: kick-automation:latest
+    container_name: kick_editor
+    restart: unless-stopped
+    command: python scripts/caption_editor.py
+    env_file: config/.env
+    environment:
+      - CAPTION_EDITOR_PORT=8888
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config:ro
+    ports:
+      - "8888:8888"
+
+  nginx:
+    image: nginx:alpine
+    container_name: kick_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - editor

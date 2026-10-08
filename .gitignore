@@ -1,0 +1,19 @@
+# Secrets — never commit
+config/.env
+config/client_secret.json
+
+# Data — too large for git
+data/
+logs/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Mac
+.DS_Store
+
+# Claude
+.claude/
