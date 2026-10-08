@@ -46,8 +46,8 @@ nginx -t && systemctl reload nginx
 echo "=== Setting up log rotation ==="
 cp deploy/logrotate.conf /etc/logrotate.d/kick_automation
 
-echo "=== Setting up clip cleanup cron ==="
-echo "0 3 * * * root bash /opt/kick_automation/deploy/cleanup-clips.sh" \
+echo "=== Setting up clip cleanup cron (every hour) ==="
+echo "0 * * * * root bash /opt/kick_automation/deploy/cleanup-clips.sh >> /opt/kick_automation/logs/cleanup.log 2>&1" \
     > /etc/cron.d/kick_cleanup
 
 echo ""
