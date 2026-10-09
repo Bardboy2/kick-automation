@@ -590,7 +590,12 @@ def handle_link_command(text: str, channel: str = None, vertical: bool = False, 
             return
 
         mb = vod_path.stat().st_size / 1e6
-        send_message(f"✅ Downloaded ({mb:.0f} MB). Processing…")
+        vps_ip = os.environ.get("VPS_IP", "5.189.185.132")
+        dl_url = f"http://{vps_ip}/downloads/{vod_id}/source.mp4"
+        send_message(
+            f"✅ Downloaded ({mb:.0f} MB). Running pipeline now…\n\n"
+            f"📥 <b>Full video:</b> <a href='{dl_url}'>Tap to download</a>"
+        )
     else:
         mb = vod_path.stat().st_size / 1e6
         log.info("VOD %s already on disk (%.0f MB)", vod_id, mb)

@@ -109,15 +109,6 @@ def run_pipeline(vod_id: str, vod_path: str, vod_title: str = "", landscape: boo
         db.update_vod_status(vod_id, "no_clips")
         return {"status": "no_clips", "vod_id": vod_id}
 
-    # ── Save raw cuts to DB immediately so Telegram bot sends them now ────────
-    early_ids = []
-    for clip in cuts.get("clips", []):
-        clip.setdefault("captioned_path", clip.get("clip_path"))
-        row_id = db.insert_clip(clip, vod_id)
-        early_ids.append((clip, row_id))
-        log.info("Clip %d saved early (row id %d) — bot will send to Telegram shortly.",
-                 clip.get("clip_index", 0), row_id)
-
     # ── Stage 3: Word-level transcription ─────────────────────────────────────
     try:
         transcribed = run_stage("transcribe.py", stdin_data=cuts)
@@ -138,27 +129,17 @@ def run_pipeline(vod_id: str, vod_path: str, vod_title: str = "", landscape: boo
     enriched = run_stage("generate_metadata.py", stdin_data=captioned)
     log.info("Stage 5 done: metadata generated for %d clip(s).", enriched.get("total", 0))
 
-    # ── Stage 6: Update early DB rows with captions + metadata ───────────────
-    clips = enriched.get("clips", []) or captioned.get("clips", [])
-    saved_ids = [row_id for _, row_id in early_ids]
+    # ── Stage 6: Save to SQLite for dashboard review ──────────────────────────
+    for clip in enriched.get("clips", []):
+        clip.setdefault("captioned_path",
+                        clip.get("landscape_path") or clip["clip_path"])
 
-    # Match enriched clips back to their early DB rows by clip_index
-    early_by_index = {clip.get("clip_index"): row_id for clip, row_id in early_ids}
+    clips = enriched.get("clips", []) or captioned.get("clips", [])
+    saved_ids = []
     for clip in clips:
-        row_id = early_by_index.get(clip.get("clip_index"))
-        if row_id is None:
-            continue
-        db.update_clip_video_paths(
-            row_id,
-            landscape_path=clip.get("landscape_path") or clip.get("clip_path"),
-            portrait_crop_path=clip.get("portrait_crop_path"),
-            portrait_blackbg_path=clip.get("portrait_blackbg_path"),
-            words_json=clip.get("words_json"),
-        )
-        meta = clip.get("metadata") or clip.get("metadata_json") or {}
-        if meta:
-            db.update_clip_metadata(row_id, meta)
-        log.info("Clip %d (row id %d) updated with captions + metadata.",
+        row_id = db.insert_clip(clip, vod_id)
+        saved_ids.append(row_id)
+        log.info("Clip %d saved to DB (row id %d, status=pending).",
                  clip.get("clip_index", 0), row_id)
 
     db.update_vod_status(vod_id, "awaiting_review")
