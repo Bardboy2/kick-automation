@@ -32,7 +32,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 OUTPUT_DIR = Path(__file__).parent.parent / "data" / "clips"
-FFMPEG     = "/usr/local/bin/ffmpeg"
+FFMPEG     = "ffmpeg"
 
 BASE_DIR    = Path(__file__).parent.parent
 LOGO_PATH   = BASE_DIR / "config" / "kick_logo.png"
@@ -122,7 +122,7 @@ def build_watermark(video_width: int, video_height: int, out_path: str) -> None:
 def get_video_size(video_path: str) -> tuple[int, int]:
     """Return (width, height) of the video."""
     from pathlib import Path as P
-    cmd = ["/usr/local/bin/ffprobe", "-v", "quiet", "-print_format", "json",
+    cmd = ["ffprobe", "-v", "quiet", "-print_format", "json",
            "-show_streams", video_path]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
@@ -210,7 +210,7 @@ def cut_clip(
 
             # Check if source has audio
             probe = subprocess.run(
-                ["/usr/local/bin/ffprobe", "-v", "quiet", "-print_format", "json",
+                ["ffprobe", "-v", "quiet", "-print_format", "json",
                  "-show_streams", str(raw_cut)],
                 capture_output=True, text=True
             )

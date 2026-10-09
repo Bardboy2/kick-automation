@@ -82,7 +82,7 @@ def _compress_if_needed(video_path: str) -> str:
 
     # Get duration
     probe = subprocess.run(
-        ["/usr/local/bin/ffprobe", "-v", "quiet", "-print_format", "json",
+        ["ffprobe", "-v", "quiet", "-print_format", "json",
          "-show_format", video_path],
         capture_output=True, text=True,
     )
@@ -97,7 +97,7 @@ def _compress_if_needed(video_path: str) -> str:
     log.info("Duration %.0fs → targeting %dk video bitrate (480p)", duration, video_kbps)
 
     result = subprocess.run(
-        ["/usr/local/bin/ffmpeg", "-y", "-i", video_path,
+        ["ffmpeg", "-y", "-i", video_path,
          "-c:v", "libx264", "-b:v", f"{video_kbps}k",
          "-maxrate", f"{video_kbps}k", "-bufsize", f"{video_kbps // 2}k",
          "-preset", "fast", "-vf", "scale=854:480:force_original_aspect_ratio=decrease,pad=854:480:(ow-iw)/2:(oh-ih)/2",

@@ -34,8 +34,8 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-FFMPEG     = "/usr/local/bin/ffmpeg"
-FFPROBE    = "/usr/local/bin/ffprobe"
+FFMPEG     = "ffmpeg"
+FFPROBE    = "ffprobe"
 OUTPUT_DIR = Path(__file__).parent.parent / "data" / "clips"
 
 # ── Caption style ──────────────────────────────────────────────────────────────

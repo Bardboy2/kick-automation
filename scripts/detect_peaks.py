@@ -25,6 +25,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import shutil
+
 import numpy as np
 import anthropic
 
@@ -41,8 +43,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%dT%H:%M:%S",
 )
 
-FFMPEG  = "/usr/local/bin/ffmpeg"
-FFPROBE = "/usr/local/bin/ffprobe"
+FFMPEG  = shutil.which("ffmpeg")  or "/usr/bin/ffmpeg"
+FFPROBE = shutil.which("ffprobe") or "/usr/bin/ffprobe"
 log = logging.getLogger(__name__)
 
 CONTENT_TYPE = "IRL / Just Chatting and Music / DJ live streams on Kick"

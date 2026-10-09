@@ -41,8 +41,8 @@ BASE_DIR        = Path(__file__).parent.parent
 OUTPUT_DIR      = BASE_DIR / "data" / "captioned"
 WORDS_PER_GROUP = 2   # 1 = maximum energy, 2 = balanced readability
 
-FFMPEG  = os.environ.get("FFMPEG_BIN",  "/usr/local/bin/ffmpeg")
-FFPROBE = os.environ.get("FFPROBE_BIN", "/usr/local/bin/ffprobe")
+FFMPEG  = os.environ.get("FFMPEG_BIN",  "ffmpeg")
+FFPROBE = os.environ.get("FFPROBE_BIN", "ffprobe")
 
 # Caption style
 FONT_SIZE     = 88
