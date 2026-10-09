@@ -75,6 +75,35 @@ def run_stage(name: str, *args, stdin_data=None) -> dict:
     return json.loads(proc.stdout) if proc.stdout.strip() else {}
 
 
+def _find_captioned_clips(vod_id: str) -> dict | None:
+    """
+    If captioned clip files already exist on disk for this VOD, reconstruct
+    the clip data dict so we can skip straight to metadata + DB save.
+    Returns None if no captioned clips found.
+    """
+    clip_dir = BASE_DIR / "data" / "clips" / vod_id
+    if not clip_dir.exists():
+        return None
+    clips = []
+    for i in range(20):
+        landscape = clip_dir / f"{vod_id}_clip{i:02d}_landscape.mp4"
+        if not landscape.exists():
+            break
+        raw             = clip_dir / f"{vod_id}_clip{i:02d}.mp4"
+        portrait_crop   = clip_dir / f"{vod_id}_clip{i:02d}_portrait_crop.mp4"
+        portrait_blackbg = clip_dir / f"{vod_id}_clip{i:02d}_portrait_blackbg.mp4"
+        clips.append({
+            "clip_index":           i,
+            "clip_path":            str(raw) if raw.exists() else str(landscape),
+            "landscape_path":       str(landscape),
+            "portrait_crop_path":   str(portrait_crop)    if portrait_crop.exists()    else None,
+            "portrait_blackbg_path":str(portrait_blackbg) if portrait_blackbg.exists() else None,
+            "start": 0, "end": 0, "duration": 45.0,
+            "peak_time": 0, "score": 0, "ai_score": 5, "combined_score": 0,
+        })
+    return {"clips": clips, "total": len(clips)} if clips else None
+
+
 def run_pipeline(vod_id: str, vod_path: str, vod_title: str = "", landscape: bool = True, watermark: bool = True) -> dict:
     import db  # local import so the module path resolves correctly
 
@@ -85,47 +114,54 @@ def run_pipeline(vod_id: str, vod_path: str, vod_title: str = "", landscape: boo
     channel = os.environ.get("KICK_CHANNEL_SLUG", "unknown")
     db.upsert_vod(vod_id, vod_title or vod_id, channel, vod_path, status="processing")
 
-    # ── Stage 1: Detect viral moments ─────────────────────────────────────────
-    peaks = run_stage(
-        "detect_peaks.py",
-        vod_path,
-        "--top",           CLIPS_PER_VOD,
-        "--min-gap",       MIN_GAP_SEC,
-        "--clip-duration", CLIP_DURATION_SEC,
-    )
-    log.info("Stage 1 done: %d peak(s) found.", peaks.get("peaks_found", 0))
-    if not peaks.get("clips"):
-        log.warning("No peaks — pipeline halted for VOD %s.", vod_id)
-        db.update_vod_status(vod_id, "no_peaks")
-        return {"status": "no_peaks", "vod_id": vod_id}
+    # ── Fast path: captioned clips already on disk → skip to metadata ─────────
+    existing = _find_captioned_clips(vod_id)
+    if existing and existing.get("clips"):
+        log.info("Found %d captioned clip(s) already on disk — skipping detect/cut/transcribe/captions.",
+                 len(existing["clips"]))
+        captioned = existing
+    else:
+        # ── Stage 1: Detect viral moments ────────────────────────────────────
+        peaks = run_stage(
+            "detect_peaks.py",
+            vod_path,
+            "--top",           CLIPS_PER_VOD,
+            "--min-gap",       MIN_GAP_SEC,
+            "--clip-duration", CLIP_DURATION_SEC,
+        )
+        log.info("Stage 1 done: %d peak(s) found.", peaks.get("peaks_found", 0))
+        if not peaks.get("clips"):
+            log.warning("No peaks — pipeline halted for VOD %s.", vod_id)
+            db.update_vod_status(vod_id, "no_peaks")
+            return {"status": "no_peaks", "vod_id": vod_id}
 
-    # ── Stage 2: Cut clips (landscape) ───────────────────────────────────────
-    cut_args = ["--landscape"]   # always cut in landscape; burn_captions makes portrait
-    if not watermark:
-        cut_args.append("--no-watermark")
-    cuts = run_stage("cut_clips.py", *cut_args, stdin_data=peaks)
-    log.info("Stage 2 done: %d clip(s) cut.", cuts.get("total", 0))
-    if not cuts.get("clips"):
-        db.update_vod_status(vod_id, "no_clips")
-        return {"status": "no_clips", "vod_id": vod_id}
+        # ── Stage 2: Cut clips (landscape) ───────────────────────────────────
+        cut_args = ["--landscape"]
+        if not watermark:
+            cut_args.append("--no-watermark")
+        cuts = run_stage("cut_clips.py", *cut_args, stdin_data=peaks)
+        log.info("Stage 2 done: %d clip(s) cut.", cuts.get("total", 0))
+        if not cuts.get("clips"):
+            db.update_vod_status(vod_id, "no_clips")
+            return {"status": "no_clips", "vod_id": vod_id}
 
-    # ── Stage 3: Word-level transcription ─────────────────────────────────────
-    try:
-        transcribed = run_stage("transcribe.py", stdin_data=cuts)
-        log.info("Stage 3 done: transcription complete.")
-    except Exception as e:
-        log.warning("Transcription failed (%s) — continuing without captions.", e)
-        transcribed = cuts
+        # ── Stage 3: Word-level transcription ─────────────────────────────────
+        try:
+            transcribed = run_stage("transcribe.py", stdin_data=cuts)
+            log.info("Stage 3 done: transcription complete.")
+        except Exception as e:
+            log.warning("Transcription failed (%s) — continuing without captions.", e)
+            transcribed = cuts
 
-    # ── Stage 4: Burn captions → 3 video formats ─────────────────────────────
-    try:
-        captioned = run_stage("burn_captions.py", stdin_data=transcribed)
-        log.info("Stage 4 done: captions burned.")
-    except Exception as e:
-        log.warning("Caption burn failed (%s) — continuing with un-captioned clips.", e)
-        captioned = transcribed
+        # ── Stage 4: Burn captions → 3 video formats ─────────────────────────
+        try:
+            captioned = run_stage("burn_captions.py", stdin_data=transcribed)
+            log.info("Stage 4 done: captions burned.")
+        except Exception as e:
+            log.warning("Caption burn failed (%s) — continuing with un-captioned clips.", e)
+            captioned = transcribed
 
-    # ── Stage 5: AI metadata (titles / descriptions / hashtags) ──────────────
+    # ── Stage 5: AI metadata (titles / descriptions / hashtags) ─────────────
     enriched = run_stage("generate_metadata.py", stdin_data=captioned)
     log.info("Stage 5 done: metadata generated for %d clip(s).", enriched.get("total", 0))
 
