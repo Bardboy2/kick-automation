@@ -181,9 +181,52 @@ def _publish_youtube_direct(clip: dict) -> dict:
 
 # ─── TikTok Content Posting API (free) ────────────────────────────────────────
 
+def _tiktok_access_token() -> str:
+    """
+    TikTok access tokens live 24h, so always mint a fresh one from the
+    refresh token (valid 365 days). TikTok rotates the refresh token on every
+    exchange, so the new one is persisted back to .env or the next call fails.
+    """
+    refresh = os.environ.get("TIKTOK_REFRESH_TOKEN", "")
+    if not refresh:
+        # No refresh token (older auth run) — fall back to the raw access token.
+        return os.environ["TIKTOK_ACCESS_TOKEN"]
+
+    resp = requests.post(
+        "https://open.tiktokapis.com/v2/oauth/token/",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        data={
+            "client_key":    os.environ["TIKTOK_CLIENT_KEY"],
+            "client_secret": os.environ["TIKTOK_CLIENT_SECRET"],
+            "grant_type":    "refresh_token",
+            "refresh_token": refresh,
+        },
+        timeout=30,
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    data = body.get("data", body)
+    access = data.get("access_token")
+    if not access:
+        raise RuntimeError(f"TikTok refresh returned no access_token: {str(body)[:300]}")
+
+    new_refresh = data.get("refresh_token")
+    if new_refresh and new_refresh != refresh:
+        try:
+            from dotenv import set_key
+            env_file = Path(__file__).parent.parent / "config" / ".env"
+            set_key(str(env_file), "TIKTOK_REFRESH_TOKEN", new_refresh)
+            set_key(str(env_file), "TIKTOK_ACCESS_TOKEN", access)
+            log.info("[TikTok] Rotated refresh token saved.")
+        except Exception as exc:
+            log.warning("[TikTok] Could not persist rotated token: %s", exc)
+
+    return access
+
+
 def _publish_tiktok_direct(clip: dict) -> dict:
     video_path = clip["approved_path"]
-    token      = os.environ["TIKTOK_ACCESS_TOKEN"]
+    token      = _tiktok_access_token()
     size       = Path(video_path).stat().st_size
     mode       = os.environ.get("TIKTOK_MODE", "draft").lower()
 

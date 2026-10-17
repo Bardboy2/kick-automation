@@ -38,7 +38,16 @@ ENV_FILE = BASE_DIR / "config" / ".env"
 REDIRECT_URI  = "http://localhost:8080/callback"
 AUTH_URL      = "https://www.tiktok.com/v2/auth/authorize/"
 TOKEN_URL     = "https://open.tiktokapis.com/v2/oauth/token/"
-SCOPES        = "user.info.basic,video.publish"
+
+# Scope has to match how we post: drafts need video.upload, public posts need
+# video.publish (which requires an audited app). Asking for a scope the app
+# doesn't have enabled makes TikTok reject the whole authorization.
+_MODE  = os.environ.get("TIKTOK_MODE", "draft").lower()
+SCOPES = os.environ.get(
+    "TIKTOK_SCOPES",
+    "user.info.basic,video.upload" if _MODE == "draft"
+    else "user.info.basic,video.publish",
+)
 
 
 # ─── Local callback server ────────────────────────────────────────────────────
