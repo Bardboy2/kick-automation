@@ -222,12 +222,12 @@ def send_clip(clip: dict, platforms: list = None) -> bool:
         f"<code>/clip {vod_id} mm:ss mm:ss</code>"
     )[:1024]
 
-    if platforms and platforms != ["youtube", "tiktok", "instagram"]:
+    if platforms and platforms != ["youtube", "tiktok"]:
         plat_key  = ",".join(platforms)
         plat_label = " & ".join(p.capitalize() for p in platforms)
         approve_btn = {"text": f"✅ Post to {plat_label}", "callback_data": f"approve:{clip_id}:{plat_key}"}
     else:
-        approve_btn = {"text": "✅ Post to All", "callback_data": f"approve:{clip_id}"}
+        approve_btn = {"text": "✅ Post to YouTube + TikTok", "callback_data": f"approve:{clip_id}"}
 
     keyboard = {
         "inline_keyboard": [
@@ -254,7 +254,7 @@ def handle_approve(clip_id: int, callback_query: dict, platforms: list = None) -
     message_id = callback_query["message"]["message_id"]
     callback_id = callback_query["id"]
 
-    platforms = platforms or ["youtube", "tiktok", "instagram"]
+    platforms = platforms or ["youtube", "tiktok"]
     plat_label = ", ".join(p.capitalize() for p in platforms)
 
     answer_callback(callback_id, f"Posting to {plat_label}…")
@@ -314,7 +314,7 @@ def handle_approve(clip_id: int, callback_query: dict, platforms: list = None) -
         req_id    = res.get("request_id", "")
 
         if status in ("published", "done", "success", "completed"):
-            send_message("✅ Posted to YouTube Shorts, TikTok & Instagram Reels!")
+            send_message("✅ Posted to YouTube Shorts & TikTok!")
         else:
             send_message(f"✅ Upload submitted! Status: {status}\nID: <code>{req_id}</code>")
 
