@@ -36,6 +36,12 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+def _env_int(key: str, default: str) -> int:
+    """systemd's EnvironmentFile keeps inline '# comments' in the value."""
+    raw = os.environ.get(key, default).split("#")[0].strip()
+    return int(raw or default)
+
+
 BASE_DIR      = Path(__file__).parent.parent
 SCRIPTS_DIR   = Path(__file__).parent
 DOWNLOAD_DIR  = Path(os.environ.get("DOWNLOAD_DIR", str(BASE_DIR / "data" / "downloads")))
@@ -45,7 +51,7 @@ KICK_CHANNEL    = os.environ.get("KICK_CHANNEL_SLUG", "")
 TWITCH_CHANNEL  = os.environ.get("TWITCH_CHANNEL", "")
 TWITCH_ID       = os.environ.get("TWITCH_CLIENT_ID", "")
 TWITCH_SECRET   = os.environ.get("TWITCH_CLIENT_SECRET", "")
-POLL_INTERVAL   = int(os.environ.get("POLL_INTERVAL", "300"))
+POLL_INTERVAL   = _env_int("POLL_INTERVAL", "300")
 
 TELEGRAM_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT   = os.environ.get("TELEGRAM_CHAT_ID", "")

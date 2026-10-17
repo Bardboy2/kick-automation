@@ -44,9 +44,15 @@ SCRIPTS_DIR = Path(__file__).parent
 LOG_DIR     = BASE_DIR / "data" / "logs"
 
 # Pipeline tuning — can be overridden via environment variables
-CLIPS_PER_VOD     = int(os.environ.get("CLIPS_PER_VOD",     "3"))
-MIN_GAP_SEC       = float(os.environ.get("MIN_GAP_SEC",     "60"))
-CLIP_DURATION_SEC = float(os.environ.get("CLIP_DURATION_SEC","45"))
+def _env_num(key: str, default: str, cast=float):
+    """systemd's EnvironmentFile keeps inline '# comments' in the value."""
+    raw = os.environ.get(key, default).split("#")[0].strip()
+    return cast(raw or default)
+
+
+CLIPS_PER_VOD     = _env_num("CLIPS_PER_VOD",     "3",  int)
+MIN_GAP_SEC       = _env_num("MIN_GAP_SEC",       "60")
+CLIP_DURATION_SEC = _env_num("CLIP_DURATION_SEC", "45")
 
 
 def run_stage(name: str, *args, stdin_data=None) -> dict:
