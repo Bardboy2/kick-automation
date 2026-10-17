@@ -5,15 +5,19 @@ Run this ONCE to generate your access token. It is written to config/.env
 so publish.py can use it on every run.
 
 Prerequisites:
-  1. Go to developers.tiktok.com → Create an app
-  2. Add the "Content Posting API" product
-  3. Copy Client Key + Client Secret into config/.env (or set as env vars)
-  4. Add  http://localhost:8080/callback  as an allowed redirect URI in your app
+  1. developers.tiktok.com → create an org, then an app of type "Other"
+  2. Add both the "Login Kit" and "Content Posting API" products
+  3. Copy Client Key + Client Secret into config/.env
+  4. Register this redirect URI on the app (TikTok requires HTTPS, so a
+     localhost callback is not accepted):
+        https://bardboy2.github.io/kick-automation/callback.html
 
 Then run:
     python scripts/auth_tiktok.py
 
-Note: TikTok access tokens expire after 24h. Re-run this script to refresh.
+The browser lands on that page, which displays the authorization code for you
+to paste back here. Tokens are written to config/.env; publish.py refreshes the
+24h access token automatically from the saved refresh token.
 """
 
 import os
@@ -21,8 +25,7 @@ import json
 import secrets
 import webbrowser
 from pathlib import Path
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlencode, urlparse, parse_qs
+from urllib.parse import urlencode, unquote
 
 import requests
 
@@ -35,7 +38,12 @@ except ImportError:
 BASE_DIR = Path(__file__).parent.parent
 ENV_FILE = BASE_DIR / "config" / ".env"
 
-REDIRECT_URI  = "http://localhost:8080/callback"
+# TikTok rejects non-HTTPS redirect URIs, so localhost can't be used. The code
+# is delivered to a static page on GitHub Pages and pasted back in by hand.
+REDIRECT_URI  = os.environ.get(
+    "TIKTOK_REDIRECT_URI",
+    "https://bardboy2.github.io/kick-automation/callback.html",
+)
 AUTH_URL      = "https://www.tiktok.com/v2/auth/authorize/"
 TOKEN_URL     = "https://open.tiktokapis.com/v2/oauth/token/"
 
@@ -48,30 +56,6 @@ SCOPES = os.environ.get(
     "user.info.basic,video.upload" if _MODE == "draft"
     else "user.info.basic,video.publish",
 )
-
-
-# ─── Local callback server ────────────────────────────────────────────────────
-
-_callback_data: dict = {}
-
-
-class _CallbackHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        qs = parse_qs(urlparse(self.path).query)
-        _callback_data["code"]  = qs.get("code",  [None])[0]
-        _callback_data["state"] = qs.get("state", [None])[0]
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"""
-        <html><body style="font-family:sans-serif;text-align:center;padding:60px;background:#0f0f0f;color:#e8e8e8">
-          <h2 style="color:#53fc18">TikTok connected!</h2>
-          <p>You can close this tab and return to the terminal.</p>
-        </body></html>
-        """)
-
-    def log_message(self, *_):
-        pass
 
 
 # ─── Main flow ────────────────────────────────────────────────────────────────
@@ -96,22 +80,19 @@ def main():
     auth_link = f"{AUTH_URL}?{urlencode(params)}"
 
     print("\n─── TikTok OAuth Setup ────────────────────────────────────────")
-    print("Opening your browser. Log in and grant access to your TikTok account.")
-    print(f"\n  {auth_link}\n")
+    print("1. Opening your browser — log in and grant access to your TikTok account.")
+    print("2. You'll land on a page showing an authorization code.")
+    print("3. Copy that code and paste it below.\n")
+    print(f"  {auth_link}\n")
     webbrowser.open(auth_link)
 
-    print("Waiting for TikTok to redirect back…")
-    server = HTTPServer(("localhost", 8080), _CallbackHandler)
-    server.handle_request()
-
-    code = _callback_data.get("code")
+    code = input("Paste the authorization code here: ").strip()
     if not code:
-        print("[ERROR] No auth code received. Try again.")
+        print("[ERROR] No code entered. Try again.")
         raise SystemExit(1)
 
-    if _callback_data.get("state") != state:
-        print("[ERROR] State mismatch — possible CSRF. Try again.")
-        raise SystemExit(1)
+    # TikTok URL-encodes the code; paste may include the wrapper or stray quotes.
+    code = unquote(code).strip().strip('"').strip("'")
 
     # Exchange code for access token
     resp = requests.post(TOKEN_URL, headers={"Content-Type": "application/x-www-form-urlencoded"}, data={
@@ -143,7 +124,8 @@ def main():
     print("\n[OK] Token saved to config/.env")
     print(f"     TIKTOK_ACCESS_TOKEN = {access_token[:20]}…")
     print(f"     Expires in {expires_in // 3600}h")
-    print("\nNote: TikTok access tokens expire in 24h. Re-run this script to refresh.\n")
+    print("\nAccess tokens last 24h, but publish.py refreshes them automatically\n"
+          "using the saved refresh token — no need to re-run this.\n")
 
 
 if __name__ == "__main__":
