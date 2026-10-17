@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Clip Automation</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; padding: 48px 20px;
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f0f0f; color: #e8e8e8;
+  }
+  main { max-width: 680px; margin: 0 auto; }
+  h1 { font-size: 2rem; margin: 0 0 .15em; }
+  h2 { font-size: 1.05rem; margin: 2em 0 .5em; color: #53fc18; }
+  .upd { color: #9a9a9a; margin: 0 0 2.5em; font-size: .9rem; }
+  ul { padding-left: 1.2em; }
+  li { margin: .4em 0; }
+  a { color: #53fc18; }
+  footer { margin-top: 3.5em; padding-top: 1.5em; border-top: 1px solid #2a2a2a; color: #7a7a7a; font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy Policy</h1>
+  <p class="upd">Last updated: 17 October 2026</p>
+
+  <p>
+    Clip Automation ("the Service") is a private, single-operator tool that creates
+    short-form clips from the operator's own live-stream recordings and uploads them
+    to the operator's own social media accounts. It has no public users and no
+    sign-up process.
+  </p>
+
+  <h2>Information the Service handles</h2>
+  <ul>
+    <li>
+      <strong>Access tokens.</strong> OAuth access and refresh tokens issued by TikTok
+      and YouTube when the operator connects their own accounts. These authorise the
+      Service to upload videos on the operator's behalf.
+    </li>
+    <li>
+      <strong>Video recordings.</strong> Publicly available recordings from the
+      operator's own live-streaming channels, downloaded for processing.
+    </li>
+    <li>
+      <strong>Generated clips and metadata.</strong> Clip files, transcripts, captions,
+      titles, and descriptions produced from those recordings.
+    </li>
+  </ul>
+
+  <h2>Information the Service does not collect</h2>
+  <p>
+    The Service collects no personal information from any third party. It has no
+    visitors, no accounts, no analytics, no advertising, no cookies, and no tracking
+    of any kind. It does not read any other person's TikTok or YouTube data.
+  </p>
+
+  <h2>How information is used</h2>
+  <p>
+    Solely to produce clips and, after the operator manually approves each one, to
+    upload that clip to the operator's own connected accounts. Access tokens are used
+    only to perform those uploads. Information is never sold, rented, or shared, and is
+    not used for advertising or profiling.
+  </p>
+
+  <h2>Storage and retention</h2>
+  <p>
+    Data is stored on a private server controlled solely by the operator. Access tokens
+    are kept in a configuration file that is not published and is excluded from the
+    project's public source repository. Downloaded recordings and generated clips are
+    deleted automatically 48 hours after creation.
+  </p>
+
+  <h2>Third-party processing</h2>
+  <p>
+    Clip audio and still frames are sent to Anthropic's Claude API to identify engaging
+    moments and generate captions. Approved clips are transmitted to TikTok and YouTube
+    through their official APIs for upload. No other third party receives any data.
+  </p>
+
+  <h2>Security</h2>
+  <p>
+    The server is access-controlled and reachable only via SSH key authentication.
+    Credentials are never committed to source control.
+  </p>
+
+  <h2>Revoking access</h2>
+  <p>
+    The operator may revoke the Service's access at any time from their
+    <a href="https://www.tiktok.com/setting">TikTok account settings</a> or their
+    <a href="https://myaccount.google.com/permissions">Google account permissions</a>
+    page. Revocation immediately and permanently ends the Service's ability to upload.
+  </p>
+
+  <h2>Children</h2>
+  <p>The Service is not directed at children and has no users other than its operator.</p>
+
+  <h2>Changes</h2>
+  <p>
+    Any update to this policy will be published on this page with a revised date above.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions about this policy can be raised through the project's public repository at
+    <a href="https://github.com/Bardboy2/kick-automation">github.com/Bardboy2/kick-automation</a>.
+  </p>
+
+  <footer><a href="index.html">Home</a> &nbsp;·&nbsp; <a href="terms.html">Terms of Service</a></footer>
+</main>
+</body>
+</html>
