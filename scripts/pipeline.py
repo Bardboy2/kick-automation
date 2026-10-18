@@ -143,7 +143,7 @@ def run_pipeline(vod_id: str, vod_path: str, vod_title: str = "", landscape: boo
             return {"status": "no_peaks", "vod_id": vod_id}
 
         # ── Stage 2: Cut clips (landscape) ───────────────────────────────────
-        cut_args = ["--landscape", "--platform", platform]
+        cut_args = ["--landscape"]
         if channel:
             cut_args += ["--username", channel]
         if not watermark:

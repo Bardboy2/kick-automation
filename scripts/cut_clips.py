@@ -2,7 +2,7 @@
 """
 cut_clips.py — FFmpeg Clip Cutter + Watermark
 Takes peak timestamps from detect_peaks.py and cuts short clips from the source VOD.
-Burns the source platform's logo + handle watermark into every clip.
+Burns the Kick + Twitch logos and handle into every clip.
 
 Usage:
     python cut_clips.py <peaks_json_path_or_stdin> [--output-dir /data/clips]
@@ -44,20 +44,13 @@ except ImportError:
 
 KICK_USERNAME = os.environ.get("KICK_CHANNEL_SLUG", "owtyofficial")
 
-# Branding per source platform — the clip carries the logo and handle of the
-# site it came from, so a Twitch clip never gets Kick branding or vice versa.
-PLATFORM_BRANDING = {
-    "kick": {
-        "logo":   BASE_DIR / "config" / "kick_logo.png",
-        "prefix": "kick.com/",
-        "color":  (83, 252, 24, 255),    # Kick green
-    },
-    "twitch": {
-        "logo":   BASE_DIR / "config" / "twitch_logo.png",
-        "prefix": "twitch.tv/",
-        "color":  (145, 70, 255, 255),   # Twitch purple
-    },
-}
+# The same handle is used on both platforms, so clips carry both logos
+# side by side followed by one username.
+LOGO_PATHS      = [
+    BASE_DIR / "config" / "kick_logo.png",
+    BASE_DIR / "config" / "twitch_logo.png",
+]
+WATERMARK_COLOR = (255, 255, 255, 255)   # neutral between the two brands
 
 
 # ─── Watermark builder ────────────────────────────────────────────────────────
@@ -78,61 +71,60 @@ def _get_font(size: int):
 
 
 def build_watermark(video_width: int, video_height: int, out_path: str,
-                    platform: str = "kick", username: str = None) -> None:
+                    username: str = None) -> None:
     """
-    Build a watermark PNG: platform logo + 'platform.tld/USERNAME' text.
-    Saved as a transparent RGBA PNG.
+    Build a watermark PNG: Kick and Twitch logos side by side, followed by the
+    handle (the same on both platforms). Saved as a transparent RGBA PNG.
     """
-    brand     = PLATFORM_BRANDING.get(platform, PLATFORM_BRANDING["kick"])
-    logo_path = brand["logo"]
-    color     = brand["color"]
-    user      = username or KICK_USERNAME
+    user = username or KICK_USERNAME
 
-    logo_size   = 60    # logo icon size in pixels
-    font_size   = 32
-    padding     = 24
-    gap         = 10    # gap between logo and text
+    logo_size = 60    # logo icon size in pixels
+    font_size = 32
+    padding   = 24
+    logo_gap  = 12    # gap between the two logos
+    text_gap  = 16    # gap between the logos and the handle
 
     font = _get_font(font_size)
 
     # Measure text
-    tmp_img  = Image.new("RGBA", (1, 1))
-    tmp_draw = ImageDraw.Draw(tmp_img)
-    text     = f"{brand['prefix']}{user}"
-    bbox     = tmp_draw.textbbox((0, 0), text, font=font)
+    tmp_draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    bbox     = tmp_draw.textbbox((0, 0), user, font=font)
     tw       = bbox[2] - bbox[0]
     th       = bbox[3] - bbox[1]
 
-    # Watermark canvas size
-    wm_w = logo_size + gap + tw + padding * 2
-    wm_h = max(logo_size, th) + padding * 2
-
-    wm = Image.new("RGBA", (wm_w, wm_h), (0, 0, 0, 0))
-
-    # Draw logo if it exists
-    logo_x = padding
-    logo_y = (wm_h - logo_size) // 2
-    if logo_path.exists():
+    logos = []
+    for path in LOGO_PATHS:
+        if not path.exists():
+            log.warning("Logo missing: %s", path)
+            continue
         try:
-            logo = Image.open(logo_path).convert("RGBA")
-            logo = logo.resize((logo_size, logo_size), Image.LANCZOS)
-            wm.paste(logo, (logo_x, logo_y), logo)
+            logos.append(Image.open(path).convert("RGBA")
+                              .resize((logo_size, logo_size), Image.LANCZOS))
         except Exception as e:
-            log.warning("Could not load logo: %s", e)
+            log.warning("Could not load logo %s: %s", path.name, e)
 
-    # Draw text
-    draw  = ImageDraw.Draw(wm)
-    tx    = logo_x + logo_size + gap
-    ty    = (wm_h - th) // 2 - bbox[1]
+    logos_w = (len(logos) * logo_size + max(0, len(logos) - 1) * logo_gap) if logos else 0
 
-    # Outline
+    wm_w = padding * 2 + logos_w + (text_gap if logos else 0) + tw
+    wm_h = max(logo_size, th) + padding * 2
+    wm   = Image.new("RGBA", (wm_w, wm_h), (0, 0, 0, 0))
+
+    x = padding
+    for logo in logos:
+        wm.paste(logo, (x, (wm_h - logo_size) // 2), logo)
+        x += logo_size + logo_gap
+    if logos:
+        x += text_gap - logo_gap   # last logo added a logo_gap we don't want
+
+    draw = ImageDraw.Draw(wm)
+    ty   = (wm_h - th) // 2 - bbox[1]
+
+    # Outline so the handle stays readable on bright footage
     for dx in range(-2, 3):
         for dy in range(-2, 3):
-            if dx == 0 and dy == 0:
-                continue
-            draw.text((tx + dx, ty + dy), text, font=font, fill=(0, 0, 0, 200))
-    # Main text in the platform's brand colour
-    draw.text((tx, ty), text, font=font, fill=color)
+            if dx or dy:
+                draw.text((x + dx, ty + dy), user, font=font, fill=(0, 0, 0, 200))
+    draw.text((x, ty), user, font=font, fill=WATERMARK_COLOR)
 
     wm.save(out_path, "PNG")
 
@@ -161,13 +153,12 @@ def cut_clip(
     output_path: Path,
     vertical: bool = True,
     watermark: bool = True,
-    platform: str = "kick",
     username: str = None,
 ) -> bool:
     """
     Cut a clip from video_path between start and end seconds.
-    Crops to 9:16 (1080x1920) if vertical=True, then burns the source
-    platform's watermark into bottom-centre (unless watermark=False).
+    Crops to 9:16 (1080x1920) if vertical=True, then burns the
+    Kick+Twitch watermark into bottom-centre (unless watermark=False).
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
     duration = end - start
@@ -220,7 +211,7 @@ def cut_clip(
             # Step 2: Build watermark PNG sized for the clip
             w, h = get_video_size(str(raw_cut))
             wm_path = str(tmp_path / "watermark.png")
-            build_watermark(w, h, wm_path, platform=platform, username=username)
+            build_watermark(w, h, wm_path, username=username)
 
             # Step 3: Overlay watermark bottom-centre with 20px margin
             wm_img    = Image.open(wm_path)
@@ -266,8 +257,7 @@ def cut_clip(
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def cut_all(peaks_data: dict, output_dir: Path, vertical: bool = True,
-            watermark: bool = True, platform: str = "kick",
-            username: str = None) -> dict:
+            watermark: bool = True, username: str = None) -> dict:
     clips_in  = peaks_data.get("clips", [])
     clips_out = []
 
@@ -284,7 +274,7 @@ def cut_all(peaks_data: dict, output_dir: Path, vertical: bool = True,
         out_path  = output_dir / source_id / out_name
 
         success = cut_clip(video_path, start, end, out_path, vertical=vertical,
-                           watermark=watermark, platform=platform, username=username)
+                           watermark=watermark, username=username)
 
         if success:
             clips_out.append({
@@ -309,8 +299,6 @@ def main():
     parser.add_argument("--output-dir", default=str(OUTPUT_DIR))
     parser.add_argument("--landscape",     action="store_true")
     parser.add_argument("--no-watermark",  action="store_true", help="Skip watermark overlay")
-    parser.add_argument("--platform", default="kick", choices=["kick", "twitch"],
-                        help="Source platform — picks the logo, handle prefix and colour")
     parser.add_argument("--username", default=None,
                         help="Channel handle for the watermark (defaults to KICK_CHANNEL_SLUG)")
     args = parser.parse_args()
@@ -324,7 +312,7 @@ def main():
     vertical  = not args.landscape
     watermark = not args.no_watermark
     result    = cut_all(peaks_data, out_dir, vertical=vertical, watermark=watermark,
-                        platform=args.platform, username=args.username)
+                        username=args.username)
 
     print(json.dumps(result, indent=2))
 
