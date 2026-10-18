@@ -110,7 +110,8 @@ def _find_captioned_clips(vod_id: str) -> dict | None:
     return {"clips": clips, "total": len(clips)} if clips else None
 
 
-def run_pipeline(vod_id: str, vod_path: str, vod_title: str = "", landscape: bool = True, watermark: bool = True) -> dict:
+def run_pipeline(vod_id: str, vod_path: str, vod_title: str = "", landscape: bool = True,
+                 watermark: bool = True, platform: str = "kick") -> dict:
     import db  # local import so the module path resolves correctly
 
     start_time = datetime.now(timezone.utc)
@@ -142,7 +143,9 @@ def run_pipeline(vod_id: str, vod_path: str, vod_title: str = "", landscape: boo
             return {"status": "no_peaks", "vod_id": vod_id}
 
         # ── Stage 2: Cut clips (landscape) ───────────────────────────────────
-        cut_args = ["--landscape"]
+        cut_args = ["--landscape", "--platform", platform]
+        if channel:
+            cut_args += ["--username", channel]
         if not watermark:
             cut_args.append("--no-watermark")
         cuts = run_stage("cut_clips.py", *cut_args, stdin_data=peaks)
@@ -220,6 +223,8 @@ def main():
     parser.add_argument("--channel",      help="Kick channel slug / watermark handle")
     parser.add_argument("--landscape",    action="store_true", help="Keep clips in landscape (skip 9:16 crop)")
     parser.add_argument("--no-watermark", action="store_true", help="Skip watermark overlay")
+    parser.add_argument("--platform", default="kick", choices=["kick", "twitch"],
+                        help="Source platform — selects watermark branding")
     args = parser.parse_args()
 
     if args.trigger_file:
@@ -237,7 +242,8 @@ def main():
 
     result = run_pipeline(vod_id, vod_path, vod_title,
                           landscape=getattr(args, "landscape", False),
-                          watermark=not getattr(args, "no_watermark", False))
+                          watermark=not getattr(args, "no_watermark", False),
+                          platform=getattr(args, "platform", "kick"))
     print(json.dumps(result, indent=2))
 
 

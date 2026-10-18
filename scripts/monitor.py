@@ -7,9 +7,10 @@ Run modes:
     python scripts/monitor.py           # daemon — polls every POLL_INTERVAL seconds
     python scripts/monitor.py --once    # single poll, then exit (cron-friendly)
 
-Watermark policy (see feedback-no-watermark-pasted):
-    Kick/owtyofficial  → watermark burned in
-    Everything else    → --no-watermark (legal risk on other creators' content)
+Watermark policy:
+    Your own channels (KICK_CHANNEL_SLUG / TWITCH_CHANNEL) get that platform's
+    logo and handle burned in. Everyone else's content gets --no-watermark —
+    branding another creator's stream is a legal risk.
 """
 
 import os
@@ -56,8 +57,19 @@ POLL_INTERVAL   = _env_int("POLL_INTERVAL", "300")
 TELEGRAM_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT   = os.environ.get("TELEGRAM_CHAT_ID", "")
 
-# Only this Kick channel gets the watermark — never anyone else's content.
-WATERMARK_CHANNEL = "owtyofficial"
+def _own_channel(platform: str, channel: str) -> bool:
+    """
+    True only for the operator's own channels. Branding someone else's stream
+    with a watermark is a legal risk, so other creators' clips stay clean.
+    """
+    channel = (channel or "").strip().lower()
+    if not channel:
+        return False
+    if platform == "kick":
+        return channel == (KICK_CHANNEL or "").strip().lower()
+    if platform == "twitch":
+        return channel == (TWITCH_CHANNEL or "").strip().lower()
+    return False
 
 
 # ─── State ────────────────────────────────────────────────────────────────────
@@ -253,7 +265,8 @@ def download_vod(vod: dict) -> Path | None:
 
 def start_pipeline(vod: dict, local_path: Path):
     channel  = vod["channel"]
-    is_owty  = vod["platform"] == "kick" and channel.lower() == WATERMARK_CHANNEL
+    platform = vod["platform"]
+    is_own   = _own_channel(platform, channel)
 
     cmd = [
         sys.executable, str(SCRIPTS_DIR / "pipeline.py"),
@@ -261,13 +274,14 @@ def start_pipeline(vod: dict, local_path: Path):
         "--vod-path",  str(local_path),
         "--vod-title", vod["title"],
         "--channel",   channel,
+        "--platform",  platform,
         "--landscape",
     ]
-    if not is_owty:
+    if not is_own:
         cmd.append("--no-watermark")
 
     log.info("Starting pipeline for %s VOD %s (watermark=%s)",
-             vod["platform"], vod["id"], is_owty)
+             platform, vod["id"], is_own)
     # Detached so a monitor restart can't kill an in-flight pipeline.
     proc = subprocess.Popen(
         cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
