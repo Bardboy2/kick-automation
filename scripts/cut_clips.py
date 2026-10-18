@@ -56,17 +56,24 @@ WATERMARK_COLOR = (255, 255, 255, 255)   # neutral between the two brands
 # ─── Watermark builder ────────────────────────────────────────────────────────
 
 def _get_font(size: int):
+    # Linux paths matter as much as macOS ones — the VPS has no Arial, and
+    # falling through to load_default() silently yields a tiny bitmap font.
     for path in [
         "/Library/Fonts/Arial Bold.ttf",
         "/Library/Fonts/Arial Black.ttf",
         "/System/Library/Fonts/Helvetica.ttc",
         "/System/Library/Fonts/Arial.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ]:
         if Path(path).exists():
             try:
                 return ImageFont.truetype(path, size)
-            except Exception:
+            except OSError:
                 continue
+    log.warning("No TrueType font found — watermark text will render tiny.")
     return ImageFont.load_default()
 
 
