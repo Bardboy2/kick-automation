@@ -3,59 +3,528 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Clip Automation</title>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     EDIT ME: replace PRODUCT_NAME, the domain, and the social image URL
+     ════════════════════════════════════════════════════════════════════ -->
+<title>ClipEngine — Your stream, clipped automatically</title>
+<meta name="description" content="Finds the moments worth clipping in your Kick and Twitch streams, cuts them, captions them, and posts them to YouTube and TikTok. You just approve.">
+
+<meta property="og:title" content="ClipEngine — Your stream, clipped automatically">
+<meta property="og:description" content="AI finds your best stream moments. You approve. It posts.">
+<meta property="og:type" content="website">
+<!-- <meta property="og:image" content="https://YOURDOMAIN.com/assets/og.png"> -->
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
 <style>
-  :root { color-scheme: light dark; }
-  body {
-    margin: 0; padding: 48px 20px;
-    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0f0f0f; color: #e8e8e8;
+  :root {
+    --bg:        #0a0a0a;
+    --surface:   #111111;
+    --surface-2: #1a1a1a;
+    --line:      #262626;
+    --text:      #f2f2f2;
+    --muted:     #8c8c8c;
+    --kick:      #dc2626;
+    --twitch:    #ff7f00;
+    --radius:    14px;
+    --maxw:      1080px;
   }
-  main { max-width: 680px; margin: 0 auto; }
-  h1 { font-size: 2rem; margin: 0 0 .25em; }
-  h2 { font-size: 1.1rem; margin: 2em 0 .5em; color: #53fc18; }
-  .tag { color: #9a9a9a; margin: 0 0 2.5em; }
-  ul { padding-left: 1.2em; }
-  li { margin: .4em 0; }
-  a { color: #53fc18; }
-  footer { margin-top: 3.5em; padding-top: 1.5em; border-top: 1px solid #2a2a2a; color: #7a7a7a; font-size: .9rem; }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 'Space Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  img, video { max-width: 100%; display: block; }
+  a { color: var(--kick); }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  /* ── Nav ─────────────────────────────────────────────── */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(12px);
+    background: rgba(11,11,13,.82);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 62px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -.01em; }
+  .brand .dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--kick), var(--twitch));
+  }
+  .nav-links { display: flex; gap: 26px; align-items: center; }
+  .nav-links a { color: var(--muted); text-decoration: none; font-size: 14.5px; }
+  .nav-links a:hover { color: var(--text); }
+  @media (max-width: 680px) { .nav-links a:not(.btn-sm) { display: none; } }
+
+  .btn, .btn-sm {
+    display: inline-block; text-decoration: none; font-weight: 600;
+    border-radius: 9px; transition: transform .12s ease, opacity .12s ease;
+    border: 0; cursor: pointer; font-family: inherit;
+  }
+  .btn {
+    background: var(--kick); color: #ffffff;
+    padding: 14px 26px; font-size: 16px;
+  }
+  .btn-sm { background: var(--kick); color: #ffffff; padding: 9px 16px; font-size: 14px; }
+  .btn:hover, .btn-sm:hover { transform: translateY(-1px); opacity: .92; }
+  .btn-ghost {
+    background: transparent; color: var(--text);
+    border: 1px solid var(--line); padding: 13px 25px; font-size: 16px;
+  }
+  .btn-ghost:hover { border-color: var(--muted); }
+
+  /* ── Hero ────────────────────────────────────────────── */
+  .hero { padding: 86px 0 64px; text-align: center; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 13px; color: var(--muted);
+    border: 1px solid var(--line); background: var(--surface);
+    padding: 7px 15px; border-radius: 999px; margin-bottom: 26px;
+  }
+  .pulse {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--kick);
+    box-shadow: 0 0 0 0 rgba(83,252,24,.6);
+    animation: pulse 2.4s infinite;
+  }
+  @keyframes pulse {
+    70%  { box-shadow: 0 0 0 9px rgba(220,38,38,0); }
+    100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+  }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+
+  h1, h2 {
+    font-family: 'Oswald', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  h1 {
+    font-size: clamp(2.2rem, 6vw, 3.9rem);
+    line-height: 1.06;
+    margin: 0 0 22px; font-weight: 700;
+  }
+  h1 .grad {
+    background: linear-gradient(100deg, var(--kick), var(--twitch));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .sub {
+    font-size: clamp(1.02rem, 2.1vw, 1.2rem);
+    color: var(--muted); max-width: 620px; margin: 0 auto 36px;
+  }
+  .cta-row { display: flex; gap: 13px; justify-content: center; flex-wrap: wrap; }
+  .micro { margin-top: 18px; font-size: 13.5px; color: var(--muted); }
+
+  /* ── Sections ────────────────────────────────────────── */
+  section { padding: 76px 0; border-top: 1px solid var(--line); }
+  .sec-head { text-align: center; max-width: 660px; margin: 0 auto 52px; }
+  h2 {
+    font-size: clamp(1.6rem, 3.6vw, 2.3rem);
+    margin: 0 0 14px; font-weight: 700;
+  }
+  .sec-head p { color: var(--muted); margin: 0; font-size: 1.04rem; }
+
+  /* ── Demo ────────────────────────────────────────────── */
+  .demo {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .demo video { width: 100%; background: #000; }
+  .demo-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; padding: 15px 20px; border-top: 1px solid var(--line);
+    font-size: 14px; color: var(--muted); flex-wrap: wrap;
+  }
+  .score {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--text); font-weight: 600;
+  }
+  .score b { color: var(--kick); }
+
+  /* ── Pipeline ────────────────────────────────────────── */
+  .steps { display: grid; gap: 14px; }
+  .step {
+    display: grid; grid-template-columns: 44px 1fr; gap: 18px;
+    align-items: start; padding: 20px 22px;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .step .n {
+    width: 34px; height: 34px; border-radius: 9px;
+    display: grid; place-items: center; font-weight: 700; font-size: 15px;
+    background: var(--surface-2); border: 1px solid var(--line); color: var(--kick);
+  }
+  .step h3 { margin: 4px 0 6px; font-size: 1.04rem; font-weight: 650; }
+  .step p  { margin: 0; color: var(--muted); font-size: 14.6px; }
+
+  /* ── Feature grid ────────────────────────────────────── */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(265px,1fr)); gap: 16px; }
+  .card {
+    padding: 26px 24px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .card .ico { font-size: 22px; margin-bottom: 12px; }
+  .card h3 { margin: 0 0 8px; font-size: 1.05rem; font-weight: 650; }
+  .card p  { margin: 0; color: var(--muted); font-size: 14.6px; }
+
+  /* ── Formats ─────────────────────────────────────────── */
+  .formats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px,1fr)); gap: 16px; }
+  .fmt {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 22px; text-align: center;
+  }
+  .fmt .shape { margin: 0 auto 15px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; }
+  .fmt .land { width: 124px; height: 70px; }
+  .fmt .port { width: 50px; height: 89px; }
+  .fmt .bgpad { width: 50px; height: 89px; position: relative; overflow: hidden; }
+  .fmt .bgpad::after {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%;
+    transform: translateY(-50%); height: 28px; background: var(--line);
+  }
+  .fmt h3 { margin: 0 0 5px; font-size: .97rem; font-weight: 650; }
+  .fmt p  { margin: 0; color: var(--muted); font-size: 13.4px; }
+
+  /* ── Scoring callout ─────────────────────────────────── */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; align-items: center; }
+  @media (max-width: 760px) { .split { grid-template-columns: 1fr; gap: 26px; } }
+  .split h2 { text-align: left; }
+  .bars { display: grid; gap: 16px; }
+  .bar-row { }
+  .bar-top {
+    display: flex; justify-content: space-between;
+    font-size: 13.6px; color: var(--muted); margin-bottom: 7px;
+  }
+  .bar-top b { color: var(--text); }
+  .track { height: 9px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 999px; }
+  .f-ai    { background: linear-gradient(90deg, var(--twitch), #b98cff); }
+  .f-audio { background: linear-gradient(90deg, var(--kick), #9cff6e); }
+
+  ul.ticks { list-style: none; padding: 0; margin: 22px 0 0; }
+  ul.ticks li {
+    position: relative; padding-left: 26px; margin: 11px 0;
+    color: var(--muted); font-size: 14.8px;
+  }
+  ul.ticks li::before {
+    content: "✓"; position: absolute; left: 0; top: -1px;
+    color: var(--kick); font-weight: 700;
+  }
+
+  /* ── Waitlist ────────────────────────────────────────── */
+  .waitlist {
+    background: linear-gradient(160deg, var(--surface), var(--surface-2));
+    border: 1px solid var(--line); border-radius: 20px;
+    padding: 54px 34px; text-align: center;
+  }
+  form.signup {
+    display: flex; gap: 10px; max-width: 440px; margin: 28px auto 0; flex-wrap: wrap;
+  }
+  form.signup input {
+    flex: 1 1 220px; min-width: 0;
+    padding: 14px 16px; font-size: 15.5px; font-family: inherit;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--line); border-radius: 9px;
+  }
+  form.signup input::placeholder { color: #6a6a77; }
+  form.signup input:focus { outline: 2px solid var(--kick); outline-offset: -1px; }
+  .form-note { margin-top: 15px; font-size: 13px; color: var(--muted); }
+  .form-msg { margin-top: 16px; font-size: 14.5px; color: var(--kick); min-height: 1.2em; }
+
+  /* ── Footer ──────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--line); padding: 34px 0;
+    color: var(--muted); font-size: 13.6px;
+  }
+  .foot {
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: center;
+  }
+  .foot a { color: var(--muted); text-decoration: none; margin-left: 20px; }
+  .foot a:hover { color: var(--text); }
 </style>
 </head>
 <body>
+
+<header>
+  <div class="wrap nav">
+    <div class="brand"><span class="dot"></span> ClipEngine</div>
+    <nav class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#scoring">Scoring</a>
+      <a href="#formats">Formats</a>
+      <a href="#waitlist" class="btn-sm">Join waitlist</a>
+    </nav>
+  </div>
+</header>
+
 <main>
-  <h1>Clip Automation</h1>
-  <p class="tag">A personal tool that turns live-stream recordings into short-form clips.</p>
 
-  <h2>What it does</h2>
-  <p>
-    This is a private, single-operator automation. It watches the operator's own
-    live-streaming channels for newly published recordings, identifies the most
-    engaging moments using audio analysis and an AI model, cuts those moments into
-    short vertical clips, and adds captions.
-  </p>
-  <p>
-    Finished clips are sent to the operator for review. Nothing is published
-    anywhere until the operator manually approves each individual clip. On
-    approval, the clip is uploaded to the operator's own connected social
-    accounts.
-  </p>
+  <!-- ── Hero ─────────────────────────────────────────── -->
+  <div class="wrap hero">
+    <div class="eyebrow"><span class="pulse"></span> Running live on Kick &amp; Twitch</div>
+    <h1>Your stream, clipped<br><span class="grad">while you sleep.</span></h1>
+    <p class="sub">
+      It watches your channel, finds the moments actually worth clipping, cuts
+      and captions them, and posts to YouTube and TikTok. You just tap approve.
+    </p>
+    <div class="cta-row">
+      <a href="#waitlist" class="btn">Join the waitlist</a>
+      <a href="#demo" class="btn btn-ghost">See real output</a>
+    </div>
+    <p class="micro">No editing. No scrubbing through a six-hour VOD.</p>
+  </div>
 
-  <h2>Who it is for</h2>
-  <p>
-    It is not a public product and has no end users other than its operator. There
-    is no sign-up, and no third party can connect an account to it.
-  </p>
+  <!-- ── Demo ─────────────────────────────────────────── -->
+  <section id="demo">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Real output, not a mockup</h2>
+        <p>An actual clip the system found, cut and watermarked on its own — straight from a live stream VOD.</p>
+      </div>
+      <div class="demo">
+        <!-- EDIT ME: swap in whichever clip you want to feature -->
+        <video src="assets/demo.mp4" controls playsinline preload="metadata"
+               poster="assets/demo-poster.jpg"></video>
+        <div class="demo-bar">
+          <span class="score">Virality score <b>8.4 / 10</b></span>
+          <span>Found at 02:14:08 · cut to 45s · captioned · watermarked</span>
+        </div>
+      </div>
+    </div>
+  </section>
 
-  <h2>Platform connections</h2>
-  <ul>
-    <li><strong>TikTok</strong> — uploads approved clips to the operator's own account as drafts.</li>
-    <li><strong>YouTube</strong> — uploads approved clips to the operator's own channel.</li>
-  </ul>
+  <!-- ── How it works ─────────────────────────────────── -->
+  <section id="how">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>How it works</h2>
+        <p>Six stages, start to finish, with you involved exactly once.</p>
+      </div>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><div>
+          <h3>Watches your channel</h3>
+          <p>Polls Kick and Twitch every five minutes. The moment a new VOD appears, it starts — no prompting, no uploading.</p>
+        </div></div>
+        <div class="step"><div class="n">2</div><div>
+          <h3>Finds the peaks</h3>
+          <p>Scans the full audio track for energy spikes — laughter, reactions, crowd noise, drops — to shortlist candidate moments.</p>
+        </div></div>
+        <div class="step"><div class="n">3</div><div>
+          <h3>Scores them with AI</h3>
+          <p>Pulls a frame from each candidate and asks Claude how viral the moment actually is. Loud isn't the same as good.</p>
+        </div></div>
+        <div class="step"><div class="n">4</div><div>
+          <h3>Cuts and captions</h3>
+          <p>Trims the top-ranked moments, burns in word-level captions timed to the speech, and adds your channel watermark.</p>
+        </div></div>
+        <div class="step"><div class="n">5</div><div>
+          <h3>Sends them to you</h3>
+          <p>Finished clips land in Telegram with title, description and score. Approve, reject or rewrite the caption from your phone.</p>
+        </div></div>
+        <div class="step"><div class="n">6</div><div>
+          <h3>Posts automatically</h3>
+          <p>One tap pushes to YouTube Shorts and TikTok with metadata already written. Nothing publishes without your say-so.</p>
+        </div></div>
+      </div>
+    </div>
+  </section>
 
-  <footer>
-    <a href="privacy.html">Privacy Policy</a> &nbsp;·&nbsp;
-    <a href="terms.html">Terms of Service</a>
-  </footer>
+  <!-- ── Scoring ──────────────────────────────────────── -->
+  <section id="scoring">
+    <div class="wrap split">
+      <div>
+        <h2>Volume isn't virality</h2>
+        <p style="color:var(--muted); margin:0 0 4px;">
+          Most auto-clippers just hunt for the loudest thirty seconds. That finds
+          you a lot of shouting and not much worth posting.
+        </p>
+        <p style="color:var(--muted);">
+          This one extracts a frame from every candidate moment and has Claude
+          judge it — what's happening, and would anyone stop scrolling for it.
+          That judgement is blended with the audio signal, so a quiet moment with
+          a great reaction can outrank a loud one with nothing in it.
+        </p>
+        <ul class="ticks">
+          <li>Every moment scored 0–10 for viral potential</li>
+          <li>AI weighted 60%, audio energy 40%</li>
+          <li>Clips ranked, so you see the best one first</li>
+          <li>Tuned for IRL, Just Chatting and music streams</li>
+        </ul>
+      </div>
+      <div class="bars">
+        <div class="bar-row">
+          <div class="bar-top"><span>AI scene judgement</span><b>60%</b></div>
+          <div class="track"><div class="fill f-ai" style="width:60%"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-top"><span>Audio energy</span><b>40%</b></div>
+          <div class="track"><div class="fill f-audio" style="width:40%"></div></div>
+        </div>
+        <div style="margin-top:8px; padding:20px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);">
+          <div style="font-size:13.4px; color:var(--muted); margin-bottom:9px;">Example — what the AI returns</div>
+          <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13.2px; color:var(--text); line-height:1.6; display:block;">
+            {<br>
+            &nbsp;&nbsp;"score": 9,<br>
+            &nbsp;&nbsp;"description": "Streamer reacts in<br>
+            &nbsp;&nbsp;disbelief as the crowd erupts"<br>
+            }
+          </code>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Formats ──────────────────────────────────────── -->
+  <section id="formats">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Three formats, one pass</h2>
+        <p>Every clip is rendered three ways, so you're not re-cutting for each platform.</p>
+      </div>
+      <div class="formats">
+        <div class="fmt">
+          <div class="shape land"></div>
+          <h3>Landscape</h3>
+          <p>16:9, full frame — YouTube and archive</p>
+        </div>
+        <div class="fmt">
+          <div class="shape port"></div>
+          <h3>Portrait crop</h3>
+          <p>9:16, centre-cropped — Shorts, Reels, TikTok</p>
+        </div>
+        <div class="fmt">
+          <div class="shape bgpad"></div>
+          <h3>Portrait letterbox</h3>
+          <p>9:16 on black — nothing cropped out of frame</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Features ─────────────────────────────────────── -->
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Built to run unattended</h2>
+        <p>It's a system, not a script you babysit.</p>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="ico">⚡</div>
+          <h3>Always on</h3>
+          <p>Runs 24/7 on a server, not your laptop. Your machine can be closed, asleep or off.</p>
+        </div>
+        <div class="card">
+          <div class="ico">💬</div>
+          <h3>Approve from your phone</h3>
+          <p>Review and publish from Telegram. No dashboard to log into, no desktop needed.</p>
+        </div>
+        <div class="card">
+          <div class="ico">✍️</div>
+          <h3>Captions written for you</h3>
+          <p>Word-level transcription plus AI-generated titles, descriptions and hashtags per platform.</p>
+        </div>
+        <div class="card">
+          <div class="ico">🎯</div>
+          <h3>Your branding</h3>
+          <p>Channel watermark burned into every clip, so reposts still point back to you.</p>
+        </div>
+        <div class="card">
+          <div class="ico">🔒</div>
+          <h3>Nothing posts itself</h3>
+          <p>Every clip waits for your approval. The automation stops where your judgement starts.</p>
+        </div>
+        <div class="card">
+          <div class="ico">🧹</div>
+          <h3>Cleans up after itself</h3>
+          <p>Source VODs and spent clips are deleted automatically after 48 hours.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Waitlist ─────────────────────────────────────── -->
+  <section id="waitlist">
+    <div class="wrap">
+      <div class="waitlist">
+        <h2 style="margin-bottom:12px;">Want this on your channel?</h2>
+        <p style="color:var(--muted); max-width:460px; margin:0 auto;">
+          It's running live right now on Kick and Twitch. Leave your email and
+          I'll get in touch when it opens up to other streamers.
+        </p>
+
+        <!-- ════════════════════════════════════════════════════════════
+             EDIT ME — the form needs a backend. Easiest options:
+               • Formspree  → action="https://formspree.io/f/XXXXXXX"
+               • Tally/Typeform embed
+               • Your own endpoint
+             Replace FORM_ENDPOINT below, then delete the JS fallback
+             at the bottom of this file if your provider handles redirects.
+             ════════════════════════════════════════════════════════════ -->
+        <form class="signup" id="signupForm" action="https://formspree.io/f/xrppeewv" method="POST">
+          <input type="email" name="email" placeholder="you@example.com" required
+                 autocomplete="email" aria-label="Email address">
+          <input type="text" name="channel" placeholder="Your channel name"
+                 aria-label="Channel name" style="flex:1 1 160px;">
+          <button type="submit" class="btn" style="flex:0 0 auto;">Join</button>
+        </form>
+        <div class="form-msg" id="formMsg" role="status" aria-live="polite"></div>
+        <p class="form-note">No spam. One email when it's ready, nothing else.</p>
+      </div>
+    </div>
+  </section>
+
 </main>
+
+<footer>
+  <div class="wrap foot">
+    <div>© <span id="yr">2026</span> ClipEngine</div>
+    <div>
+      <!-- EDIT ME: point these at your real pages -->
+      <a href="/privacy.html">Privacy</a>
+      <a href="/terms.html">Terms</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById("yr").textContent = new Date().getFullYear();
+
+  // Graceful submit: keeps the visitor on the page when the endpoint
+  // supports CORS (Formspree does). Delete if your provider redirects.
+  (function () {
+    var form = document.getElementById("signupForm");
+    var msg  = document.getElementById("formMsg");
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      msg.textContent = "Sending…";
+      fetch(form.action, {
+        method: "POST",
+        body: new FormData(form),
+        headers: { Accept: "application/json" }
+      }).then(function (r) {
+        if (r.ok) { form.reset(); msg.textContent = "You're on the list. Talk soon."; }
+        else { msg.textContent = "Something went wrong — try again?"; }
+      }).catch(function () {
+        msg.textContent = "Network error — try again?";
+      });
+    });
+  })();
+</script>
+
 </body>
 </html>
