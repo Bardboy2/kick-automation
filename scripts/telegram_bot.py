@@ -112,27 +112,82 @@ def _compress_if_needed(video_path: str) -> str:
     return video_path
 
 
+def _video_meta(video_path: str) -> dict:
+    """Width, height and duration — Telegram lays out the player from these."""
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=width,height",
+             "-show_entries", "format=duration",
+             "-of", "json", video_path],
+            capture_output=True, text=True, timeout=60,
+        )
+        d = json.loads(r.stdout)
+        stream = (d.get("streams") or [{}])[0]
+        return {
+            "width":    int(stream.get("width") or 0),
+            "height":   int(stream.get("height") or 0),
+            "duration": int(float(d.get("format", {}).get("duration") or 0)),
+        }
+    except Exception as exc:
+        log.warning("Could not probe %s: %s", Path(video_path).name, exc)
+        return {}
+
+
+def _poster_frame(video_path: str) -> str | None:
+    """Grab a JPEG poster so the message isn't a blank box while loading."""
+    out = str(Path(video_path).with_suffix(".thumb.jpg"))
+    try:
+        r = subprocess.run(
+            ["ffmpeg", "-y", "-v", "error", "-ss", "1", "-i", video_path,
+             "-vframes", "1",
+             # Telegram caps thumbnails at 320px and ~200kB.
+             "-vf", "scale=320:-2", "-q:v", "6", out],
+            capture_output=True, text=True, timeout=120,
+        )
+        if r.returncode == 0 and Path(out).exists() and Path(out).stat().st_size < 200_000:
+            return out
+    except Exception as exc:
+        log.warning("Thumbnail generation failed: %s", exc)
+    return None
+
+
 def send_video(video_path: str, caption: str, reply_markup: dict = None) -> dict:
     video_path = _compress_if_needed(video_path)
     payload = {
         "chat_id":    CHAT_ID,
         "caption":    caption,
         "parse_mode": "HTML",
+        # Without this Telegram marks the file non-streamable and the client
+        # downloads it whole before playing a single frame.
+        "supports_streaming": True,
     }
+    payload.update(_video_meta(video_path))
     if reply_markup:
         payload["reply_markup"] = json.dumps(reply_markup)
+
+    thumb = _poster_frame(video_path)
     try:
-        with open(video_path, "rb") as f:
+        files = {"video": open(video_path, "rb")}
+        if thumb:
+            files["thumbnail"] = open(thumb, "rb")
+        try:
             r = requests.post(
                 f"{BASE_URL}/sendVideo",
                 data=payload,
-                files={"video": f},
+                files=files,
                 timeout=600,
             )
+        finally:
+            for fh in files.values():
+                fh.close()
         return r.json()
     except Exception as exc:
         log.warning("send_video failed (network issue?): %s", exc)
         return {"ok": False, "error": str(exc)}
+    finally:
+        if thumb:
+            Path(thumb).unlink(missing_ok=True)
 
 
 def answer_callback(callback_id: str, text: str = "") -> None:
