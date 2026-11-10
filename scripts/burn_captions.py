@@ -34,6 +34,17 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# Shared playback-safety flags — see cut_clips.py for why each one matters.
+# This is the last encode before the clip reaches Telegram and the platforms,
+# so it must not undo the CFR/pix_fmt guarantees made upstream.
+try:
+    from cut_clips import VIDEO_SAFE, AUDIO_SAFE, MUX_SAFE
+except ImportError:
+    VIDEO_SAFE = ["-vsync", "cfr", "-r", "30", "-pix_fmt", "yuv420p",
+                  "-g", "60", "-keyint_min", "30"]
+    AUDIO_SAFE = ["-af", "aresample=async=1:first_pts=0", "-ar", "48000"]
+    MUX_SAFE   = ["-movflags", "+faststart", "-avoid_negative_ts", "make_zero"]
+
 FFMPEG     = "ffmpeg"
 FFPROBE    = "ffprobe"
 OUTPUT_DIR = Path(__file__).parent.parent / "data" / "clips"
@@ -179,7 +190,9 @@ def burn_overlay(
                 FFMPEG, "-y", "-i", clip_path,
                 "-vf", pre_filter,
                 "-c:v", "libx264", "-crf", "23", "-preset", "fast",
-                "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
+                *VIDEO_SAFE,
+                "-c:a", "aac", "-b:a", "192k", *AUDIO_SAFE,
+                *MUX_SAFE,
                 str(output_path),
             ], capture_output=True, text=True)
             if r.returncode != 0:
@@ -211,9 +224,9 @@ def burn_overlay(
         cmd += ["-i", png_path]
     cmd += ["-filter_complex", filter_complex, "-map", cur]
     if _has_audio(clip_path):
-        cmd += ["-map", "0:a", "-c:a", "aac", "-b:a", "192k"]
+        cmd += ["-map", "0:a", "-c:a", "aac", "-b:a", "192k", *AUDIO_SAFE]
     cmd += ["-c:v", "libx264", "-crf", "23", "-preset", "fast",
-            "-movflags", "+faststart", str(output_path)]
+            *VIDEO_SAFE, *MUX_SAFE, str(output_path)]
 
     log.info("FFmpeg overlay → %s (%d frames)", output_path.name, len(frames))
     r = subprocess.run(cmd, capture_output=True, text=True)

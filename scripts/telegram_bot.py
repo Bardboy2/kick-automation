@@ -96,12 +96,20 @@ def _compress_if_needed(video_path: str) -> str:
     video_kbps = min(video_kbps, 800)  # never exceed 800k — keeps any clip under 50MB
     log.info("Duration %.0fs → targeting %dk video bitrate (480p)", duration, video_kbps)
 
+    # bufsize was video_kbps//2 — far tighter than the bitrate, which starves
+    # rate control and shows up as quality dips and stutter. 2x is the norm.
     result = subprocess.run(
         ["ffmpeg", "-y", "-i", video_path,
          "-c:v", "libx264", "-b:v", f"{video_kbps}k",
-         "-maxrate", f"{video_kbps}k", "-bufsize", f"{video_kbps // 2}k",
-         "-preset", "fast", "-vf", "scale=854:480:force_original_aspect_ratio=decrease,pad=854:480:(ow-iw)/2:(oh-ih)/2",
-         "-c:a", "aac", "-b:a", f"{audio_kbps}k", "-movflags", "+faststart", out],
+         "-maxrate", f"{video_kbps}k", "-bufsize", f"{video_kbps * 2}k",
+         "-preset", "fast",
+         "-vf", "scale=854:480:force_original_aspect_ratio=decrease,"
+                "pad=854:480:(ow-iw)/2:(oh-ih)/2",
+         "-vsync", "cfr", "-r", "30", "-pix_fmt", "yuv420p",
+         "-g", "60", "-keyint_min", "30",
+         "-c:a", "aac", "-b:a", f"{audio_kbps}k",
+         "-af", "aresample=async=1:first_pts=0", "-ar", "48000",
+         "-movflags", "+faststart", "-avoid_negative_ts", "make_zero", out],
         capture_output=True, text=True, timeout=900,
     )
     if result.returncode == 0 and Path(out).stat().st_size > 0:
