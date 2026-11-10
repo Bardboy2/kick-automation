@@ -247,5 +247,33 @@ def main():
     print(json.dumps(result, indent=2))
 
 
+def _notify_failure(vod_id: str, err: str):
+    """A pipeline that dies silently looks identical to one still running."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat  = os.environ.get("TELEGRAM_CHAT_ID", "")
+    if not token or not chat:
+        return
+    try:
+        import requests
+        requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat, "parse_mode": "HTML",
+                  "text": f"\u26a0\ufe0f <b>Pipeline failed</b> for VOD "
+                          f"<code>{vod_id[:8]}</code>\n\n<code>{err[-400:]}</code>"},
+            timeout=20,
+        )
+    except Exception:
+        pass   # never let the notifier mask the original error
+
+
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        log.exception("Pipeline failed")
+        vid = ""
+        for i, a in enumerate(sys.argv):
+            if a == "--vod-id" and i + 1 < len(sys.argv):
+                vid = sys.argv[i + 1]
+        _notify_failure(vid, f"{type(exc).__name__}: {exc}")
+        raise

@@ -310,12 +310,19 @@ def start_pipeline(vod: dict, local_path: Path):
 
     log.info("Starting pipeline for %s VOD %s (watermark=%s)",
              platform, vod["id"], is_own)
+    # Keep the output — a pipeline that dies mid-run is otherwise invisible,
+    # and the clips simply never arrive with nothing to explain why.
+    log_path = BASE_DIR / "logs" / f"pipeline_{vod['id'][:8]}.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    logfh = open(log_path, "ab")
+
     # Detached so a monitor restart can't kill an in-flight pipeline.
     proc = subprocess.Popen(
-        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        cmd, stdout=logfh, stderr=subprocess.STDOUT,
         start_new_session=True,
     )
-    log.info("Pipeline PID %d", proc.pid)
+    logfh.close()   # the child holds its own descriptor
+    log.info("Pipeline PID %d — output: %s", proc.pid, log_path.name)
     return proc
 
 
