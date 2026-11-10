@@ -53,6 +53,8 @@ TWITCH_CHANNEL  = os.environ.get("TWITCH_CHANNEL", "")
 TWITCH_ID       = os.environ.get("TWITCH_CLIENT_ID", "")
 TWITCH_SECRET   = os.environ.get("TWITCH_CLIENT_SECRET", "")
 POLL_INTERVAL   = _env_int("POLL_INTERVAL", "300")
+# Anything shorter than this is a failed or expired download, not a stream.
+MIN_VOD_SECONDS = _env_int("MIN_VOD_SECONDS", "60")
 
 TELEGRAM_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT   = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -214,6 +216,19 @@ def fetch_twitch_vods(channel: str) -> list[dict]:
 
 # ─── Download ─────────────────────────────────────────────────────────────────
 
+def _probe_duration(path: Path) -> float | None:
+    """Seconds of video, or None if ffprobe can't read the file at all."""
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=60,
+        )
+        return float(r.stdout.strip())
+    except (ValueError, subprocess.SubprocessError):
+        return None
+
+
 def download_vod(vod: dict) -> Path | None:
     vod_id   = vod["id"]
     out_dir  = DOWNLOAD_DIR / vod_id
@@ -247,17 +262,30 @@ def download_vod(vod: dict) -> Path | None:
         else:
             log.error("No m3u8 found — VOD may be deleted or private.")
 
-    if not ok:
-        # Leave nothing half-written behind for the next cycle to trip over.
+    def _discard(reason: str):
+        """Bin a dead download so it can't be mistaken for a real VOD later."""
+        log.warning("Discarding VOD %s — %s", vod_id, reason)
         if out_path.exists():
             out_path.unlink()
         try:
             out_dir.rmdir()
         except OSError:
             pass
+
+    if not ok:
+        _discard("download failed")
         return None
 
-    log.info("Downloaded VOD %s (%.0f MB)", vod_id, out_path.stat().st_size / 1e6)
+    # A "successful" download can still be a stub — Kick serves truncated
+    # fragments for expired VODs. Running the pipeline on a 3-second file
+    # burns API calls and produces nothing.
+    duration = _probe_duration(out_path)
+    if duration is not None and duration < MIN_VOD_SECONDS:
+        _discard(f"only {duration:.1f}s of video (minimum {MIN_VOD_SECONDS}s)")
+        return None
+
+    log.info("Downloaded VOD %s (%.0f MB, %.0fs)", vod_id,
+             out_path.stat().st_size / 1e6, duration or 0)
     return out_path
 
 
