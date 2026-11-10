@@ -38,11 +38,11 @@ log = logging.getLogger(__name__)
 # This is the last encode before the clip reaches Telegram and the platforms,
 # so it must not undo the CFR/pix_fmt guarantees made upstream.
 try:
-    from cut_clips import VIDEO_SAFE, AUDIO_SAFE, MUX_SAFE
+    from cut_clips import VIDEO_SAFE, AUDIO_COPY, MUX_SAFE
 except ImportError:
-    VIDEO_SAFE = ["-vsync", "cfr", "-r", "30", "-pix_fmt", "yuv420p",
+    VIDEO_SAFE = ["-vsync", "passthrough", "-pix_fmt", "yuv420p",
                   "-g", "60", "-keyint_min", "30"]
-    AUDIO_SAFE = ["-af", "aresample=async=1:first_pts=0", "-ar", "48000"]
+    AUDIO_COPY = ["-c:a", "copy"]
     MUX_SAFE   = ["-movflags", "+faststart", "-avoid_negative_ts", "make_zero"]
 
 FFMPEG     = "ffmpeg"
@@ -191,7 +191,7 @@ def burn_overlay(
                 "-vf", pre_filter,
                 "-c:v", "libx264", "-crf", "23", "-preset", "fast",
                 *VIDEO_SAFE,
-                "-c:a", "aac", "-b:a", "192k", *AUDIO_SAFE,
+                *AUDIO_COPY,
                 *MUX_SAFE,
                 str(output_path),
             ], capture_output=True, text=True)
@@ -224,7 +224,7 @@ def burn_overlay(
         cmd += ["-i", png_path]
     cmd += ["-filter_complex", filter_complex, "-map", cur]
     if _has_audio(clip_path):
-        cmd += ["-map", "0:a", "-c:a", "aac", "-b:a", "192k", *AUDIO_SAFE]
+        cmd += ["-map", "0:a", *AUDIO_COPY]
     cmd += ["-c:v", "libx264", "-crf", "23", "-preset", "fast",
             *VIDEO_SAFE, *MUX_SAFE, str(output_path)]
 

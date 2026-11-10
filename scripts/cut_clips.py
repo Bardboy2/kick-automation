@@ -44,25 +44,22 @@ except ImportError:
 
 KICK_USERNAME = os.environ.get("KICK_CHANNEL_SLUG", "owtyofficial")
 
-# Playback-safety flags. Stream VODs are variable frame rate, and cutting VFR
-# without forcing CFR lets audio and video timestamps drift — we were shipping
-# clips whose audio ended ~4s before the video. These keep every output
-# constant-rate, in sync, and decodable on phones.
-#   -vsync cfr          constant frame rate (ffmpeg 4.x spelling of -fps_mode)
-#   -r 30               pin the output rate so VFR input can't leak through
+# Touch the source as little as possible. The watermark overlay forces a video
+# re-encode (you can't draw pixels without re-compressing), but audio is copied
+# through untouched and the frame rate is left exactly as the source recorded
+# it. Pinning -r here would duplicate frames on low-fps VODs and make judder
+# worse, not better.
+#   -vsync passthrough  keep the source's own frame timing
 #   -pix_fmt yuv420p    yuv444/422 sources are undecodable on most mobile chips
-#   -g / -keyint_min    2s keyframe interval, so seeking isn't coarse
-#   aresample=async=1   pads audio gaps instead of letting them desync
+#   -g / -keyint_min    2s keyframes so seeking lands where you tap
 VIDEO_SAFE = [
-    "-vsync", "cfr", "-r", "30",
+    "-vsync", "passthrough",
     "-pix_fmt", "yuv420p",
     "-g", "60", "-keyint_min", "30",
 ]
-AUDIO_SAFE = [
-    "-af", "aresample=async=1:first_pts=0",
-    "-ar", "48000",
-]
-MUX_SAFE = ["-movflags", "+faststart", "-avoid_negative_ts", "make_zero"]
+# Audio is never re-encoded — bit-identical to the source.
+AUDIO_COPY = ["-c:a", "copy"]
+MUX_SAFE   = ["-movflags", "+faststart", "-avoid_negative_ts", "make_zero"]
 
 # The same handle is used on both platforms, so clips carry both logos
 # side by side followed by one username.
@@ -210,7 +207,7 @@ def cut_clip(
                 "-vf", vf,
                 "-c:v", "libx264", "-crf", "23", "-preset", "fast",
                 *VIDEO_SAFE,
-                "-c:a", "aac", "-b:a", "192k", *AUDIO_SAFE,
+                *AUDIO_COPY,
                 *MUX_SAFE,
                 str(raw_cut),
             ]
@@ -222,7 +219,7 @@ def cut_clip(
                 "-t", str(duration),
                 "-c:v", "libx264", "-crf", "23", "-preset", "fast",
                 *VIDEO_SAFE,
-                "-c:a", "aac", "-b:a", "192k", *AUDIO_SAFE,
+                *AUDIO_COPY,
                 *MUX_SAFE,
                 str(raw_cut),
             ]
@@ -265,8 +262,7 @@ def cut_clip(
                 "-map", "[v]",
             ]
             if has_audio:
-                overlay_cmd += ["-map", "0:a", "-c:a", "aac", "-b:a", "192k",
-                                *AUDIO_SAFE]
+                overlay_cmd += ["-map", "0:a", *AUDIO_COPY]
             overlay_cmd += [
                 "-c:v", "libx264", "-crf", "23", "-preset", "fast",
                 *VIDEO_SAFE, *MUX_SAFE,
