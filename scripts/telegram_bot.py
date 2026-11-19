@@ -369,17 +369,37 @@ def handle_approve(clip_id: int, callback_query: dict, platforms: list = None) -
             return
 
         data = json.loads(result.stdout)
-        db.mark_posted(clip_id, data)
 
         published = data.get("published", [{}])
         res       = published[0].get("result", {}) if published else {}
         status    = res.get("status", "submitted")
         req_id    = res.get("request_id", "")
+        detail    = res.get("detail", {}) or {}
 
-        if status in ("published", "done", "success", "completed"):
-            send_message("✅ Posted to YouTube Shorts & TikTok!")
-        else:
-            send_message(f"✅ Upload submitted! Status: {status}\nID: <code>{req_id}</code>")
+        # Report each platform separately — a partial success used to be
+        # reported as an overall tick, and the actual error was discarded.
+        lines, ok_any = [], False
+        for plat, r in detail.items():
+            st = (r or {}).get("status", "unknown")
+            if st in ("published", "done", "success", "completed"):
+                ok_any = True
+                url = r.get("url") or ""
+                lines.append(f"✅ <b>{plat.capitalize()}</b>" + (f" — {url}" if url else ""))
+            elif st == "draft":
+                ok_any = True
+                lines.append(f"📝 <b>{plat.capitalize()}</b> — saved as draft, publish it in the app")
+            else:
+                err = str(r.get("error") or st)
+                lines.append(f"❌ <b>{plat.capitalize()}</b> — <code>{err[:250]}</code>")
+
+        if not lines:
+            lines = [f"Status: {status}  ID: <code>{req_id}</code>"]
+
+        # Only mark posted if something actually landed, so a failed clip
+        # stays pending and can be retried.
+        if ok_any:
+            db.mark_posted(clip_id, data)
+        send_message("\n".join(lines))
 
     except subprocess.TimeoutExpired:
         send_message("❌ Upload timed out.")
