@@ -36,6 +36,7 @@ log = logging.getLogger(__name__)
 
 BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID    = os.environ.get("TELEGRAM_CHAT_ID", "")
+KICK_USERNAME = os.environ.get("KICK_CHANNEL_SLUG", "owtyofficial")
 BASE_URL   = f"https://api.telegram.org/bot{BOT_TOKEN}"
 SCRIPTS_DIR = Path(__file__).parent
 
@@ -326,6 +327,22 @@ def handle_approve(clip_id: int, callback_query: dict, platforms: list = None) -
     clip = db.get_clip(clip_id)
     if not clip:
         send_message(f"❌ Clip {clip_id} not found in database.")
+        return
+
+    # Clips are deleted 48h after creation to save disk, but the Telegram
+    # message stays forever — so an old approve would otherwise fail deep in
+    # publish.py with a bare "No such file or directory".
+    video_path = clip.get("captioned_path") or clip.get("clip_path")
+    if not video_path or not Path(video_path).exists():
+        db.expire_clip(clip_id)
+        vod = clip.get("vod_id", "")
+        send_message(
+            f"⏳ <b>Clip {clip_id} has expired.</b>\n\n"
+            f"Clips are deleted 48 hours after they're made, to save disk space, "
+            f"and this one is past that.\n\n"
+            f"To get it back, paste the VOD link again:\n"
+            f"<code>https://kick.com/{KICK_USERNAME}/videos/{vod}</code>"
+        )
         return
 
     db.approve_clip(clip_id)

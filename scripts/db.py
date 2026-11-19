@@ -162,6 +162,16 @@ def reject_clip(clip_id: int, db_path: Path = DB_PATH):
         )
 
 
+def expire_clip(clip_id: int, db_path: Path = DB_PATH):
+    """Clip file was cleaned up before it could be posted — take it out of
+    the pending queue so the bot stops offering something it can't publish."""
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "UPDATE clips SET status='expired', reviewed_at=? WHERE id=?",
+            (datetime.now(timezone.utc).isoformat(), clip_id),
+        )
+
+
 def update_captioned_path(clip_id: int, path: str, db_path: Path = DB_PATH):
     """Update the captioned_path for a clip (e.g. after burning a caption overlay)."""
     with get_connection(db_path) as conn:
